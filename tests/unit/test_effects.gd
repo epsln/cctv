@@ -19,21 +19,31 @@ func test_unknown_type_and_param_rejected() -> void:
 
 
 func test_binding_modulates_param() -> void:
-	var e := Effect.from_dict({
-		"type": "chromatic", "params": {"strength": 0.01},
-		"bindings": [{"param": "strength", "signal": "uBassEnergy", "amount": 0.1}]})
+	var e := Effect.from_dict(
+		{
+			"type": "chromatic",
+			"params": {"strength": 0.01},
+			"bindings": [{"param": "strength", "signal": "uBassEnergy", "amount": 0.1}]
+		}
+	)
 	var out := e.apply({"uBassEnergy": 0.5})
 	near(out["strength"], 0.06)
 	near(e.material.get_shader_parameter("strength"), 0.06)
 
 
 func test_binding_uses_shader_default_when_unset() -> void:
-	var e := Effect.from_dict({"type": "chromatic", "bindings": [{"param": "barrel", "signal": "uBeatEnvelope", "amount": 1.0}]})
+	var e := Effect.from_dict(
+		{"type": "chromatic", "bindings": [{"param": "barrel", "signal": "uBeatEnvelope", "amount": 1.0}]}
+	)
 	near(e.apply({"uBeatEnvelope": 0.0})["barrel"], 0.15)
 
 
 func test_roundtrip() -> void:
-	var d := {"type": "glitch", "params": {"amount": 0.1}, "bindings": [{"param": "amount", "signal": "uOnsetEnvelope", "amount": 0.2}]}
+	var d := {
+		"type": "glitch",
+		"params": {"amount": 0.1},
+		"bindings": [{"param": "amount", "signal": "uOnsetEnvelope", "amount": 0.2}]
+	}
 	eq(Effect.from_dict(d).to_dict(), d)
 
 
@@ -66,3 +76,10 @@ func test_chain_renders_pixels() -> void:
 	var p := center_pixel(c.get_output())
 	near(p.r, p.g, 0.02, "desaturated r==g")
 	check(p.r > 0.1 and p.r < 0.4, "red luma ~0.21, got %s" % str(p))
+
+
+func test_parse_default() -> void:
+	var code := "uniform float barrel = 0.15;\nuniform int radius : hint_range(1, 8) = 4;"
+	near(Effect.parse_default(code, "barrel"), 0.15)
+	near(Effect.parse_default(code, "radius"), 4.0)
+	near(Effect.parse_default(code, "missing"), 0.0)
