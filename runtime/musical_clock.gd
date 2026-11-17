@@ -101,6 +101,12 @@ func bar_phase() -> float:
 	return p - floorf(p)
 
 
+## Clock time of the first beat onset strictly after `after` (default: now).
+func next_beat_time(after := -1.0) -> float:
+	var t := time if after < 0.0 else after
+	return beat_offset + (floorf((t - beat_offset) / beat_length()) + 1.0) * beat_length()
+
+
 func beat_envelope() -> float:
 	return exp(-beat_phase() * beat_length() / envelope_decay)
 
