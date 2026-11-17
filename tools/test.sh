@@ -6,10 +6,11 @@
 # gl (default): real OpenGL rendering under Xvfb when no display is present,
 #   so pixel read-back tests run (Mesa llvmpipe works).
 # headless: dummy renderer; pixel tests are skipped.
-# Uses $GODOT (default: godot).
+# Godot: $GODOT, .godot-bin/godot (tools/get_godot.sh) or PATH.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-godot=${GODOT:-godot}
+# shellcheck source=tools/godot_path.sh
+source tools/godot_path.sh
 mode=${1:-gl}
 "$godot" --headless --path . --import >/dev/null 2>&1 || true
 if [ "$mode" = headless ]; then
