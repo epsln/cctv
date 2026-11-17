@@ -9,7 +9,10 @@ extends Node
 ##   --fps=N                target/replay frame rate (default from show, 60)
 ##   --projector-screen=N   fullscreen projector on screen N
 ##   --no-projector         do not open the projector window
-##   --no-operator          hide operator UI (benchmark/capture)
+##   --no-operator          main window shows the bare output (Movie Maker/benchmark)
+##   --capture=DIR          record timestamped PNG frames + frames.jsonl
+##   --capture-every=N      capture every Nth frame (default 1)
+##   --capture-scale=F      downscale captured frames (default 1.0)
 
 signal frame_done(t: float, frame: int)
 signal composition_changed(comp_id: String)
@@ -31,6 +34,8 @@ var global_fx: EffectChain
 var metrics: FrameMetrics
 var projector: Window
 var operator: Control
+var recorder: Recorder
+var main_out: TextureRect
 var _last_usec := 0
 
 
@@ -54,6 +59,31 @@ func _ready() -> void:
 		operator = load("res://runtime/operator_view.gd").new()
 		operator.performance = self
 		add_child(operator)
+	else:
+		main_out = TextureRect.new()
+		main_out.name = "MainOutput"
+		main_out.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		main_out.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		main_out.set_anchors_preset(Control.PRESET_FULL_RECT)
+		add_child(main_out)
+	if args.has("capture"):
+		start_capture(str(args["capture"]), int(args.get("capture-every", 1)), float(args.get("capture-scale", 1.0)))
+
+
+func start_capture(dir: String, every := 1, scale := 1.0) -> Error:
+	if recorder == null:
+		recorder = Recorder.new()
+		recorder.name = "Recorder"
+		recorder.source = output_texture
+		recorder.context = func(): return {"active": compositor.active_id(), "progress": compositor.progress}
+		add_child(recorder)
+		frame_done.connect(recorder.on_frame)
+	recorder.every = maxi(every, 1)
+	recorder.scale = scale
+	var err := recorder.start(dir)
+	if err != OK:
+		errors.append("cannot start capture in %s (%d)" % [dir, err])
+	return err
 
 
 func setup(path: String) -> Error:
@@ -169,6 +199,8 @@ func step() -> void:
 	global_fx.update(u)
 	if projector:
 		projector.get_node("out").texture = output_texture()
+	if main_out:
+		main_out.texture = output_texture()
 	frame_done.emit(t, clock.frame)
 
 
@@ -207,5 +239,6 @@ func status() -> Dictionary:
 		"feedback": feedback.enabled,
 		"metrics": metrics.summary(),
 		"sources": assets.describe(),
+		"capture": recorder.stats() if recorder else {},
 		"errors": errors,
 	}
