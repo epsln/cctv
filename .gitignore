@@ -1,5 +1,4 @@
 .godot/
-*.import
 *.uid.tmp
 /captures/
 /bench/results/
