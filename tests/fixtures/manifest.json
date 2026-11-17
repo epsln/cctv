@@ -1,0 +1,6 @@
+{"version": 1, "assets": [
+  {"id": "clip", "type": "video", "path": "clip.ogv"},
+  {"id": "still", "type": "image", "path": "still.png", "metadata": {"faces": [[0.1, 0.1, 0.2, 0.3]]}},
+  {"id": "doc2", "type": "pdf_page", "path": "doc.pdf", "page": 2},
+  {"id": "tick", "type": "text", "text": "BREAKING // SIGNAL LOST //", "style": "ticker"}
+]}
