@@ -1,0 +1,14 @@
+{
+  "manifest": "manifest.json",
+  "output": [64, 36],
+  "fps": 30,
+  "bpm": 120,
+  "feedback": {"enabled": true, "decay": 0.5},
+  "global_effects": [{"type": "color_grade"}],
+  "initial": "a",
+  "compositions": {
+    "a": {"layers": [{"id": "v", "asset": "clip"}, {"id": "t", "asset": "tick", "rect": [0, 0.8, 1, 0.2]}]},
+    "b": {"layers": [{"id": "s", "asset": "still"}]},
+    "broken": {"layers": [{"id": "x", "asset": "missing"}]}
+  }
+}
