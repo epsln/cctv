@@ -4,10 +4,13 @@
 #   tools/bench.sh [SECONDS] [extra benchmark options...]
 #
 # Requires sample assets (tools/make_sample_assets.sh) or a show passed with
-# --show=PATH. Uses $GODOT (default: godot). Results: bench/results/*.json
+# --show=PATH. Godot: $GODOT, .godot-bin/godot (tools/get_godot.sh) or PATH. Results: bench/results/*.json
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tools/godot_path.sh
+source tools/godot_path.sh
+"$godot" --headless --path . --import >/dev/null 2>&1 || true
 secs=${1:-60}; shift || true
 [ -f assets/sample/manifest.json ] || tools/make_sample_assets.sh
-"${GODOT:-godot}" --path . --audio-driver Dummy --resolution 1920x1080 \
+"$godot" --path . --audio-driver Dummy --resolution 1920x1080 \
   res://scenes/benchmark.tscn -- --duration="$secs" "$@"

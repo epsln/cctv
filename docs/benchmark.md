@@ -17,10 +17,11 @@ only show that the benchmark runs. They are not acceptance evidence.
 ## Running
 
 ```sh
+tools/get_godot.sh                    # if Godot is not installed
 tools/make_sample_assets.sh -d 60     # or point a show at the real library
-GODOT=/path/to/godot tools/bench.sh 300                        # 5 min
-GODOT=/path/to/godot tools/bench.sh 7200 --sample=60           # long session
-GODOT=/path/to/godot tools/bench.sh 120 --vsync=off            # headroom
+tools/bench.sh 300                        # 5 min
+tools/bench.sh 7200 --sample=60           # long session
+tools/bench.sh 120 --vsync=off            # headroom
 ```
 
 Options: `--switch-beats=N`, `--seek-every=S`, `--show=PATH`, `--out=PATH`,

@@ -47,13 +47,7 @@ jobs:
       - &godot-install
         name: Install Godot
         if: steps.godot-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p .godot-bin
-          curl -sSL -o godot.zip \
-            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
-          unzip -q godot.zip -d .godot-bin
-          mv .godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64 .godot-bin/godot
-          rm godot.zip
+        run: tools/get_godot.sh "$GODOT_VERSION"
       - name: Tests (headless, dummy renderer)
         run: tools/test.sh headless
       - name: Tests (OpenGL via Xvfb/llvmpipe, pixel checks)

@@ -10,12 +10,13 @@ implementation lives in a separate repository (`cctvcpp`).
 
 ## Quick start
 
-Requirements: Godot 4.5 stable (`$GODOT` or `godot` on PATH), `ffmpeg`, `pdftoppm` (poppler-utils),
+Requirements: Godot 4.5 stable (found via `$GODOT`, `.godot-bin/godot`, or `godot` on PATH), `ffmpeg`, `pdftoppm` (poppler-utils),
 `xvfb-run` for display-less test runs. Lint: `gdlint runtime sources tests` (gdtoolkit 4).
 
 ```sh
+tools/get_godot.sh                   # downloads Godot 4.5 to .godot-bin/ (if not installed)
 tools/make_sample_assets.sh          # synthetic test videos/images/PDF pages
-godot --path .                       # projector + operator windows
+.godot-bin/godot --path .            # projector + operator windows
 tools/test.sh                        # tests (OpenGL via Xvfb if no display)
 tools/test.sh headless               # tests without a renderer (pixel checks skipped)
 tools/bench.sh 60                    # 60 s benchmark -> bench/results/*.json
