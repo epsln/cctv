@@ -1,0 +1,49 @@
+{
+  "manifest": "../assets/sample/manifest.json",
+  "output": [1920, 1080],
+  "fps": 60,
+  "bpm": 124,
+  "feedback": {"enabled": true, "decay": 0.82, "zoom": 0.997, "spin": 0.15, "mode": 0, "beat_cut": 0.3},
+  "global_effects": [
+    {"type": "chromatic", "params": {"strength": 0.002}, "bindings": [{"param": "strength", "signal": "uBassEnergy", "amount": 0.006}]},
+    {"type": "bloom", "params": {"threshold": 0.7, "intensity": 0.6, "radius": 2}}
+  ],
+  "initial": "bench_grid",
+  "compositions": {
+    "bench_grid": {
+      "layers": [
+        {"kind": "group", "id": "panels", "rect": [0, 0, 1, 1],
+         "effects": [{"type": "glitch", "params": {"amount": 0.005}, "bindings": [{"param": "amount", "signal": "uOnsetEnvelope", "amount": 0.02}]}],
+         "children": [
+          {"kind": "layer", "id": "c1", "asset": "cam1", "rect": [0.0, 0.0, 0.5, 0.5], "effects": [{"type": "color_grade", "params": {"saturation": 0.2}}]},
+          {"kind": "layer", "id": "c2", "asset": "cam2", "rect": [0.5, 0.0, 0.5, 0.5], "effects": [{"type": "edge_detect", "params": {"mix_amount": 0.6}}]},
+          {"kind": "layer", "id": "c3", "asset": "cam3", "rect": [0.0, 0.5, 0.5, 0.5], "effects": [{"type": "kaleidoscope"}]},
+          {"kind": "layer", "id": "c4", "asset": "news", "rect": [0.5, 0.5, 0.5, 0.5], "effects": [{"type": "chromatic", "params": {"strength": 0.01}}]},
+          {"kind": "annotation", "id": "faces", "target": "c4", "style": "box", "label": "SUBJECT"}
+         ]},
+        {"kind": "group", "id": "doc", "rect": [0.62, 0.1, 0.3, 0.75], "clip": true,
+         "children": [
+          {"kind": "layer", "id": "page", "asset": "doc_p1", "opacity": 0.9},
+          {"kind": "annotation", "id": "red", "style": "redact", "boxes": [[0.1, 0.4, 0.6, 0.03], [0.1, 0.45, 0.7, 0.03]]},
+          {"kind": "annotation", "id": "hl", "style": "highlight", "color": [1, 1, 0, 1], "boxes": [[0.08, 0.08, 0.8, 0.04]]}
+         ]},
+        {"kind": "layer", "id": "caption", "asset": "caption", "rect": [0.02, 0.02, 0.4, 0.06]},
+        {"kind": "layer", "id": "ticker", "asset": "ticker", "rect": [0.0, 0.92, 1.0, 0.07]}
+      ]
+    },
+    "bench_focus": {
+      "layers": [
+        {"kind": "layer", "id": "main", "asset": "news", "effects": [{"type": "color_grade", "params": {"saturation": 0.0, "contrast": 1.4}, "bindings": [{"param": "contrast", "signal": "uBeatEnvelope", "amount": 0.3}]}]},
+        {"kind": "annotation", "id": "faces", "target": "main", "style": "box", "label": "SUBJECT 07"},
+        {"kind": "group", "id": "strip", "rect": [0.0, 0.0, 0.25, 1.0],
+         "children": [
+          {"kind": "layer", "id": "s1", "asset": "cam1", "rect": [0, 0.0, 1, 0.33]},
+          {"kind": "layer", "id": "s2", "asset": "cam2", "rect": [0, 0.33, 1, 0.33], "blend": "add"},
+          {"kind": "layer", "id": "s3", "asset": "cam3", "rect": [0, 0.66, 1, 0.33]}
+         ]},
+        {"kind": "layer", "id": "page", "asset": "doc_p2", "rect": [0.7, 0.15, 0.25, 0.6], "rotation": 4.0},
+        {"kind": "layer", "id": "ticker", "asset": "ticker", "rect": [0.0, 0.92, 1.0, 0.07]}
+      ]
+    }
+  }
+}
