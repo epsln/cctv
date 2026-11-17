@@ -98,8 +98,11 @@ func _draw() -> void:
 
 func to_dict() -> Dictionary:
 	return {
-		"kind": "group", "id": layer_id,
+		"kind": "group",
+		"id": layer_id,
 		"rect": [norm_rect.position.x, norm_rect.position.y, norm_rect.size.x, norm_rect.size.y],
-		"opacity": opacity, "clip": clip, "effects": effect_defs.duplicate(true),
+		"opacity": opacity,
+		"clip": clip,
+		"effects": effect_defs.duplicate(true),
 		"children": items().map(func(c): return c.to_dict()),
 	}

@@ -12,9 +12,9 @@ extends Node
 ## instance(id) creates an independent playhead each call.
 
 var assets := {}
+var pdf_cache_dir := "user://pdf_cache"
 var _shared := {}
 var _counter := 0
-var pdf_cache_dir := "user://pdf_cache"
 
 
 func load_manifest(path: String) -> Error:

@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**", "release/**", "hotfix/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  GODOT_VERSION: "4.5-stable"
+  GODOT: ${{ github.workspace }}/.godot-bin/godot
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "gdtoolkit==4.*"
+      - name: gdlint
+        run: gdlint runtime sources tests
+      - name: gdformat
+        run: gdformat --check -l 120 runtime sources tests
+      - name: shellcheck
+        run: shellcheck tools/*.sh
+
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - &deps
+        name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb libgl1-mesa-dri libglx-mesa0 \
+            libxcursor1 libxinerama1 libxrandr2 libxi6 ffmpeg poppler-utils fonts-dejavu-core
+      - &godot-cache
+        name: Cache Godot
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: .godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-linux-x86_64
+      - &godot-install
+        name: Install Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .godot-bin
+          curl -sSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+          unzip -q godot.zip -d .godot-bin
+          mv .godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64 .godot-bin/godot
+          rm godot.zip
+      - name: Tests (headless, dummy renderer)
+        run: tools/test.sh headless
+      - name: Tests (OpenGL via Xvfb/llvmpipe, pixel checks)
+        run: tools/test.sh gl
+
+  benchmark-smoke:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - *deps
+      - *godot-cache
+      - *godot-install
+      - name: Sample assets
+        run: tools/make_sample_assets.sh -d 10 -H 360
+      - name: Import
+        run: $GODOT --headless --path . --import || true
+      - name: Benchmark smoke run (software rendering; not acceptance data)
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            tools/bench.sh 15 --sample=5 --seek-every=3 --switch-beats=4 --out=res://bench/results/ci.json
+      - name: Offline render smoke (Movie Maker)
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" tools/render_movie.sh -f 30 -t 2 bench/results/movie/frame.png
+          test "$(ls bench/results/movie | wc -l)" -ge 60
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-smoke
+          path: |
+            bench/results/ci.json
+            bench/results/movie/frame00000059.png

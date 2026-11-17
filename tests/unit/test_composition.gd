@@ -11,24 +11,49 @@ func before_each() -> void:
 	var red := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	red.fill(Color.RED)
 	red.save_png("user://red.png")
-	am.register({"id": "red", "type": "image", "path": "user://red.png",
-		"metadata": {"face_track": [{"t": 0.0, "boxes": [[0.5, 0.5, 0.25, 0.25]]}]}})
+	am.register(
+		{
+			"id": "red",
+			"type": "image",
+			"path": "user://red.png",
+			"metadata": {"face_track": [{"t": 0.0, "boxes": [[0.5, 0.5, 0.25, 0.25]]}]}
+		}
+	)
 
 
 func spec() -> Dictionary:
 	return {
 		"id": "test",
 		"background": [0.0, 0.0, 1.0, 1.0],
-		"layers": [
+		"layers":
+		[
 			{"kind": "layer", "id": "bg", "asset": "red", "rect": [0.0, 0.0, 0.5, 1.0]},
-			{"kind": "group", "id": "panels", "rect": [0.5, 0.0, 0.5, 0.5], "clip": true,
-			 "effects": [{"type": "color_grade", "params": {"saturation": 0.0}}],
-			 "children": [
-				{"kind": "layer", "id": "cam", "asset": "clip", "instance": "independent", "start": 0.5,
-				 "effects": [{"type": "glitch"}], "blend": "add"},
-				{"kind": "layer", "id": "doc", "asset": "still", "opacity": 0.5,
-				 "bindings": [{"prop": "opacity", "signal": "uBeatEnvelope", "amount": 0.5}]},
-			 ]},
+			{
+				"kind": "group",
+				"id": "panels",
+				"rect": [0.5, 0.0, 0.5, 0.5],
+				"clip": true,
+				"effects": [{"type": "color_grade", "params": {"saturation": 0.0}}],
+				"children":
+				[
+					{
+						"kind": "layer",
+						"id": "cam",
+						"asset": "clip",
+						"instance": "independent",
+						"start": 0.5,
+						"effects": [{"type": "glitch"}],
+						"blend": "add"
+					},
+					{
+						"kind": "layer",
+						"id": "doc",
+						"asset": "still",
+						"opacity": 0.5,
+						"bindings": [{"prop": "opacity", "signal": "uBeatEnvelope", "amount": 0.5}]
+					},
+				]
+			},
 			{"kind": "annotation", "id": "faces", "target": "bg", "style": "box", "label": "SUBJECT"},
 			{"kind": "annotation", "id": "redact", "style": "redact", "boxes": [[0.1, 0.1, 0.2, 0.05]]},
 		],
@@ -109,7 +134,10 @@ func test_invalid_specs_rejected() -> void:
 	var bad := [
 		{"id": "x", "layers": [{"kind": "layer", "id": "a", "asset": "nope"}]},
 		{"id": "x", "layers": [{"kind": "layer", "id": "a", "asset": "red", "blend": "screen"}]},
-		{"id": "x", "layers": [{"kind": "layer", "id": "a", "asset": "red"}, {"kind": "layer", "id": "a", "asset": "red"}]},
+		{
+			"id": "x",
+			"layers": [{"kind": "layer", "id": "a", "asset": "red"}, {"kind": "layer", "id": "a", "asset": "red"}]
+		},
 		{"id": "x", "layers": [{"kind": "annotation", "id": "a", "target": "missing"}]},
 		{"id": "x", "layers": [{"kind": "sprite", "id": "a"}]},
 	]
@@ -123,8 +151,11 @@ func test_invalid_specs_rejected() -> void:
 func test_renders_layers() -> void:
 	if not gpu():
 		return
-	var d := {"id": "px", "background": [0, 0, 1, 1],
-		"layers": [{"kind": "layer", "id": "bg", "asset": "red", "rect": [0, 0, 0.5, 1]}]}
+	var d := {
+		"id": "px",
+		"background": [0, 0, 1, 1],
+		"layers": [{"kind": "layer", "id": "bg", "asset": "red", "rect": [0, 0, 0.5, 1]}]
+	}
 	var c := make(d)
 	c.update(0.0, {})
 	await RenderingServer.frame_post_draw
@@ -137,9 +168,19 @@ func test_renders_layers() -> void:
 func test_offscreen_group_renders_effect() -> void:
 	if not gpu():
 		return
-	var d := {"id": "g", "layers": [{"kind": "group", "id": "g", "rect": [0, 0, 1, 1],
-		"effects": [{"type": "color_grade", "params": {"saturation": 0.0}}],
-		"children": [{"kind": "layer", "id": "r", "asset": "red"}]}]}
+	var d := {
+		"id": "g",
+		"layers":
+		[
+			{
+				"kind": "group",
+				"id": "g",
+				"rect": [0, 0, 1, 1],
+				"effects": [{"type": "color_grade", "params": {"saturation": 0.0}}],
+				"children": [{"kind": "layer", "id": "r", "asset": "red"}]
+			}
+		]
+	}
 	var c := make(d)
 	for i in 3:
 		c.update(0.0, {})

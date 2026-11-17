@@ -10,8 +10,14 @@ func test_capture_writes_timestamped_frames() -> void:
 		return
 	var dir := "user://test_capture_%d" % Time.get_ticks_usec()
 	var pr := PerformanceRoot.new()
-	pr.args = {"show": "res://tests/fixtures/show.json", "replay": true, "no-projector": true,
-		"no-operator": true, "capture": dir, "capture-every": "2"}
+	pr.args = {
+		"show": "res://tests/fixtures/show.json",
+		"replay": true,
+		"no-projector": true,
+		"no-operator": true,
+		"capture": dir,
+		"capture-every": "2"
+	}
 	add_child(pr)
 	for i in 12:
 		await RenderingServer.frame_post_draw

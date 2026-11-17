@@ -26,9 +26,7 @@ func prepare() -> void:
 	_vp.transparent_bg = true
 	_vp.size = box_size
 	_vp.disable_3d = true
-	_vp.render_target_update_mode = (
-		SubViewport.UPDATE_ALWAYS if style == "ticker" else SubViewport.UPDATE_ONCE
-	)
+	_vp.render_target_update_mode = (SubViewport.UPDATE_ALWAYS if style == "ticker" else SubViewport.UPDATE_ONCE)
 	_label = Label.new()
 	_label.text = text
 	_label.add_theme_font_size_override("font_size", font_size)
@@ -47,9 +45,7 @@ func set_text(t: String) -> void:
 	text = t
 	if _label:
 		_label.text = t
-		_vp.render_target_update_mode = (
-			SubViewport.UPDATE_ALWAYS if style == "ticker" else SubViewport.UPDATE_ONCE
-		)
+		_vp.render_target_update_mode = (SubViewport.UPDATE_ALWAYS if style == "ticker" else SubViewport.UPDATE_ONCE)
 
 
 func update(t: float) -> void:
