@@ -49,4 +49,6 @@ func _run() -> void:
 	print("\n%d passed, %d failed" % [passed, failed])
 	for fl in failures:
 		printerr("  " + fl)
+	for i in 3:
+		await process_frame
 	quit(1 if failed > 0 else 0)
