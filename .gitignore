@@ -1,0 +1,8 @@
+.godot/
+*.import
+*.uid.tmp
+/captures/
+/bench/results/
+/assets/library/
+/assets/sample/
+__pycache__/
