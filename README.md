@@ -49,6 +49,8 @@ See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
 | [Learning strategy and objectives](docs/07-learning-strategy.md) | Recorded-set training, imitation, scene-level PPO, rewards, and evaluation |
 | [Quality annotation workflow](docs/08-quality-annotation.md) | A/B review, long-sequence feedback, data records, and preference learning |
 | [Development roadmap](docs/09-development-roadmap.md) | Ordered implementation milestones and acceptance criteria |
+| [Milestone 1 implementation](docs/milestone-1.md) | What was built, design decisions, limitations |
+| [Benchmark](docs/benchmark.md) | Acceptance workload, procedure and results |
 
 ## Branching
 
