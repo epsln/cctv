@@ -38,8 +38,8 @@ var _mutex := Mutex.new()
 func start(path := "") -> Error:
 	if path != "":
 		dir = path
-	var abs := ProjectSettings.globalize_path(dir)
-	var err := DirAccess.make_dir_recursive_absolute(abs)
+	var abs_dir := ProjectSettings.globalize_path(dir)
+	var err := DirAccess.make_dir_recursive_absolute(abs_dir)
 	if err != OK:
 		return err
 	_index = FileAccess.open(dir.path_join("frames.jsonl"), FileAccess.WRITE)
@@ -96,13 +96,15 @@ func _on_post_draw() -> void:
 	rec["readback_usec"] = readback_usec
 	_write_index(rec)
 	var out := ProjectSettings.globalize_path(dir.path_join(file))
-	var s := scale
-	_tasks.append(WorkerThreadPool.add_task(func():
-		if s != 1.0:
-			img.resize(maxi(1, int(img.get_width() * s)), maxi(1, int(img.get_height() * s)), Image.INTERPOLATE_BILINEAR)
-		img.save_png(out)))
+	_tasks.append(WorkerThreadPool.add_task(_save.bind(img, out, scale)))
 	captured += 1
 	_pending_frame = -1
+
+
+static func _save(img: Image, path: String, s: float) -> void:
+	if s != 1.0:
+		img.resize(maxi(1, int(img.get_width() * s)), maxi(1, int(img.get_height() * s)), Image.INTERPOLATE_BILINEAR)
+	img.save_png(path)
 
 
 func _write_index(rec: Dictionary) -> void:
@@ -127,6 +129,8 @@ func _exit_tree() -> void:
 
 func stats() -> Dictionary:
 	return {
-		"captured": captured, "dropped": dropped,
-		"readback_ms": readback_usec / 1000.0, "max_readback_ms": max_readback_usec / 1000.0,
+		"captured": captured,
+		"dropped": dropped,
+		"readback_ms": readback_usec / 1000.0,
+		"max_readback_ms": max_readback_usec / 1000.0,
 	}

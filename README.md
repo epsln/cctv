@@ -10,13 +10,16 @@ implementation lives in a separate repository (`cctvcpp`).
 
 ## Quick start
 
-Requirements: Godot 4.5 stable, `ffmpeg`, `pdftoppm` (poppler-utils).
+Requirements: Godot 4.5 stable (`$GODOT` or `godot` on PATH), `ffmpeg`, `pdftoppm` (poppler-utils),
+`xvfb-run` for display-less test runs. Lint: `gdlint runtime sources tests` (gdtoolkit 4).
 
 ```sh
 tools/make_sample_assets.sh          # synthetic test videos/images/PDF pages
 godot --path .                       # projector + operator windows
-godot --headless --path . -s res://tests/run_tests.gd   # tests
+tools/test.sh                        # tests (OpenGL via Xvfb if no display)
+tools/test.sh headless               # tests without a renderer (pixel checks skipped)
 tools/bench.sh 60                    # 60 s benchmark -> bench/results/*.json
+tools/render_movie.sh -t 10 out.avi  # deterministic offline render (Movie Maker)
 ```
 
 See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and

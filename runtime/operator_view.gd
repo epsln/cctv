@@ -57,7 +57,11 @@ func _ready() -> void:
 	_fb = CheckBox.new()
 	_fb.text = "Feedback"
 	_fb.button_pressed = performance.feedback.enabled
-	_fb.toggled.connect(func(on): performance.feedback.enabled = on; performance.feedback.reset())
+	_fb.toggled.connect(
+		func(on):
+			performance.feedback.enabled = on
+			performance.feedback.reset()
+	)
 	right.add_child(_fb)
 	right.add_child(_label("Compositions (keys 1-9)"))
 	_comp_box = VBoxContainer.new()
@@ -94,8 +98,19 @@ func _process(_d: float) -> void:
 	var m: Dictionary = s["metrics"]
 	var lines := [
 		"t=%.2fs frame=%d beat=%d phase=%.2f clock=%s" % [s["time"], s["frame"], s["beat"], s["beat_phase"], s["mode"]],
-		"fps=%.1f p95=%.1fms p99=%.1fms late=%d/%d" % [m["recent_fps"], m["p95_ms"], m["p99_ms"], m["late_frames"], m["frames"]],
-		"active=%s incoming=%s %s %.2f" % [s["transition"]["active"], s["transition"]["incoming"], s["transition"]["kind"], s["transition"]["progress"]],
+		(
+			"fps=%.1f p95=%.1fms p99=%.1fms late=%d/%d"
+			% [m["recent_fps"], m["p95_ms"], m["p99_ms"], m["late_frames"], m["frames"]]
+		),
+		(
+			"active=%s incoming=%s %s %.2f"
+			% [
+				s["transition"]["active"],
+				s["transition"]["incoming"],
+				s["transition"]["kind"],
+				s["transition"]["progress"]
+			]
+		),
 	]
 	for src in s["sources"]:
 		lines.append("  %s %s %s ph=%.2f" % [src["id"], src["type"], src["state"], src["playhead"]])

@@ -37,8 +37,16 @@ func _rasterize() -> void:
 	DirAccess.make_dir_recursive_absolute(cache_abs)
 	var out_base := cache_abs + "/" + pdf_path.get_file().get_basename() + "-" + str(page)
 	var args := [
-		"-png", "-r", str(dpi), "-f", str(page), "-l", str(page), "-singlefile",
-		ProjectSettings.globalize_path(pdf_path), out_base,
+		"-png",
+		"-r",
+		str(dpi),
+		"-f",
+		str(page),
+		"-l",
+		str(page),
+		"-singlefile",
+		ProjectSettings.globalize_path(pdf_path),
+		out_base,
 	]
 	var code := OS.execute("pdftoppm", args)
 	_finish.call_deferred(code)

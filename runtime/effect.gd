@@ -67,7 +67,18 @@ func param_names() -> Array:
 func base_value(p: String) -> Variant:
 	if params.has(p):
 		return params[p]
-	return RenderingServer.shader_get_parameter_default(material.shader.get_rid(), p)
+	var v: Variant = RenderingServer.shader_get_parameter_default(material.shader.get_rid(), p)
+	if v == null:
+		# Dummy renderer (headless) does not track defaults: parse the source.
+		v = parse_default(material.shader.code, p)
+	return v
+
+
+## Scalar default of `uniform <type> name = <number>;` in shader code, else 0.
+static func parse_default(code: String, p: String) -> float:
+	var re := RegEx.create_from_string("uniform\\s+\\w+\\s+" + p + "\\b[^=;]*=\\s*([-+0-9.eE]+)")
+	var m := re.search(code)
+	return float(m.get_string(1)) if m else 0.0
 
 
 ## Push musical uniforms and evaluate bindings. Returns evaluated params.

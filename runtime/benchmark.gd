@@ -86,14 +86,24 @@ func _switch() -> void:
 	_switch_i += 1
 	var t0 := Time.get_ticks_usec()
 	var err := perf.trigger(target, kind, 2.0, true)
-	switches.append({
-		"t": perf.clock.time, "to": target, "kind": kind, "ok": err == OK,
-		"prepare_ms": (Time.get_ticks_usec() - t0) / 1000.0,
-	})
+	(
+		switches
+		. append(
+			{
+				"t": perf.clock.time,
+				"to": target,
+				"kind": kind,
+				"ok": err == OK,
+				"prepare_ms": (Time.get_ticks_usec() - t0) / 1000.0,
+			}
+		)
+	)
 
 
 func _seek_random() -> void:
-	var vids := perf.assets.get_children().filter(func(s): return s is TheoraVideoSource and s.state == VisualSource.State.READY)
+	var vids := perf.assets.get_children().filter(
+		func(s): return s is TheoraVideoSource and s.state == VisualSource.State.READY
+	)
 	if vids.is_empty():
 		return
 	var v: TheoraVideoSource = vids[_rng.randi() % vids.size()]
@@ -218,10 +228,15 @@ func _finish() -> void:
 		"acceptance": evaluate(m, perf.fps),
 		"cpu_percent": 100.0 * cpu / maxf(elapsed(), 1e-6),  # 100 = one core
 		# Excludes warm-up (first 25% / 60 s); only meaningful for long sessions.
-		"rss_growth_mb_per_hour": slope_per_hour(
-			timeline.filter(func(s): return s["elapsed"] >= minf(60.0, duration * 0.25)), "rss_mb"),
-		"switches": {"count": switches.size(), "failed": switches.filter(func(s): return not s["ok"]).size(),
-			"max_prepare_ms": prep_ms.max() if prep_ms else 0.0, "events": switches},
+		"rss_growth_mb_per_hour":
+		slope_per_hour(timeline.filter(func(s): return s["elapsed"] >= minf(60.0, duration * 0.25)), "rss_mb"),
+		"switches":
+		{
+			"count": switches.size(),
+			"failed": switches.filter(func(s): return not s["ok"]).size(),
+			"max_prepare_ms": prep_ms.max() if prep_ms else 0.0,
+			"events": switches
+		},
 		"seeks": {"count": seeks.size(), "max_ms": seek_ms.max() if seek_ms else 0.0, "events": seeks},
 		"upload_ms": upload_benchmark(),
 		"sources": perf.assets.describe(),
@@ -234,7 +249,18 @@ func _finish() -> void:
 	f.store_string(JSON.stringify(result, "  "))
 	f.close()
 	print("benchmark: %s" % ProjectSettings.globalize_path(path))
-	print("  fps=%.1f late=%d/%d p99=%.1fms rss=%.0fMB cpu=%.0f%% pass=%s" % [
-		m["mean_fps"], m["late_frames"], m["frames"], m["p99_ms"], timeline[-1]["rss_mb"],
-		result["cpu_percent"], result["acceptance"]["pass"]])
+	print(
+		(
+			"  fps=%.1f late=%d/%d p99=%.1fms rss=%.0fMB cpu=%.0f%% pass=%s"
+			% [
+				m["mean_fps"],
+				m["late_frames"],
+				m["frames"],
+				m["p99_ms"],
+				timeline[-1]["rss_mb"],
+				result["cpu_percent"],
+				result["acceptance"]["pass"]
+			]
+		)
+	)
 	get_tree().quit(1 if not perf.errors.is_empty() else 0)

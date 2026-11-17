@@ -75,8 +75,11 @@ func update(_t: float, _u: Dictionary) -> void:
 		_boxes = []
 		for b in src_boxes:
 			# source-normalized -> crop-normalized
-			_boxes.append(Rect2((b[0] - c.position.x) / c.size.x, (b[1] - c.position.y) / c.size.y,
-				b[2] / c.size.x, b[3] / c.size.y))
+			_boxes.append(
+				Rect2(
+					(b[0] - c.position.x) / c.size.x, (b[1] - c.position.y) / c.size.y, b[2] / c.size.x, b[3] / c.size.y
+				)
+			)
 	else:
 		_boxes = static_boxes.map(func(b): return Rect2(b[0], b[1], b[2], b[3]))
 	queue_redraw()
@@ -103,7 +106,10 @@ func _draw() -> void:
 
 func to_dict() -> Dictionary:
 	var d := {
-		"kind": "annotation", "id": layer_id, "style": style, "label": label,
+		"kind": "annotation",
+		"id": layer_id,
+		"style": style,
+		"label": label,
 		"color": [color.r, color.g, color.b, color.a],
 		"rect": [norm_rect.position.x, norm_rect.position.y, norm_rect.size.x, norm_rect.size.y],
 	}
