@@ -34,6 +34,7 @@ uv run cctv-analyse file set.flac --play             # play a recorded set and p
 uv run cctv-analyse live --device pipewire           # live input (route Mixxx main to it)
 uv run pytest && uv run ruff check && uv run mypy    # analyser tests/lint/types
 tools/timing_probe.sh [AUDIO] [SECONDS]              # end-to-end timing measurement
+uv sync --group eval && uv run cctv-evaluate --list ../bench/eval/corpus.txt   # beat/bar accuracy
 ```
 
 See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
@@ -68,6 +69,7 @@ See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
 | [Benchmark](docs/benchmark.md) | Acceptance workload, procedure and results |
 | [Milestone 2 implementation](docs/milestone-2.md) | Musical runtime: analyser, clock following, scheduler, status, plan |
 | [Musical state protocol](docs/musical-state.md) | Message schema, timing semantics, transport and fallback |
+| [Beat and bar evaluation](docs/beat-evaluation.md) | Reference-beat method, corpus, results and tracker choices |
 
 ## Branching
 

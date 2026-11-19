@@ -199,6 +199,7 @@ class SlowAnalyser:
         self._spec_s: Samples | None = None
         self._spec_l: Samples | None = None
         self._novelty_norm = RangeNorm(30.0, dt, 0.02)
+        self.bands: Samples = np.zeros(len(edges) - 1, np.float32)
         self.out = SlowFeatures()
 
     def process(self, fast: FastFeatures, mag: Samples) -> SlowFeatures:
@@ -207,6 +208,7 @@ class SlowAnalyser:
         s.energy_long += self._kl * (fast.level - s.energy_long)
         s.energy_trend = s.energy_short - s.energy_long
         bands = np.log1p(np.add.reduceat(mag, self._edges[:-1])).astype(np.float32)
+        self.bands = bands
         if self._spec_s is None or self._spec_l is None:
             self._spec_s = bands.copy()
             self._spec_l = bands.copy()

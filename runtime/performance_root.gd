@@ -124,6 +124,7 @@ func setup(path: String) -> Error:
 				"tempo_smoothing",
 				"phase_slew_time",
 				"jump_threshold",
+			"auto_bar_alignment",
 				"bar_min_confidence",
 				"latency_compensation",
 				"feature_stale_after"

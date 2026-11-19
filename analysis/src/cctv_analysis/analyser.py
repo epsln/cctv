@@ -7,6 +7,7 @@ from collections.abc import Iterable, Iterator
 from typing import Protocol
 
 from .beat import MAX_BPM, MIN_BPM, BeatTracker, DownbeatEstimator
+from .comb import CombBeatTracker
 from .features import FastAnalyser, SlowAnalyser
 from .pcm import PcmBlock, PcmSource
 from .state import MusicalState
@@ -27,13 +28,20 @@ class Analyser:
         realtime: bool = True,
         slow_every_s: float = 0.5,
         bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
+        tracker: str = "comb",
     ) -> None:
         self.sr = sample_rate
         self.hop = hop
         self.realtime = realtime
         self.fast = FastAnalyser(sample_rate, hop)
         self.slow = SlowAnalyser(sample_rate, hop, len(self.fast.mag))
-        self.beat = BeatTracker(sample_rate, hop, bpm_range=bpm_range)
+        self.beat: BeatTracker | CombBeatTracker
+        if tracker == "comb":
+            self.beat = CombBeatTracker(sample_rate, hop, len(self.fast.mag), bpm_range=bpm_range)
+        elif tracker == "aubio":
+            self.beat = BeatTracker(sample_rate, hop, bpm_range=bpm_range)
+        else:
+            raise ValueError(f"unknown tracker {tracker!r}")
         self.bar = DownbeatEstimator(beats_per_bar)
         self.bpb = beats_per_bar
         self._slow_every = max(1, round(slow_every_s * sample_rate / hop))
@@ -49,12 +57,17 @@ class Analyser:
         if self._n % self._slow_every == 0:  # slow values are published at a low rate
             self._slow_snapshot = type(s)(s.energy_short, s.energy_long, s.energy_trend, s.novelty)
         self._n += 1
-        b = self.beat.process(block.samples, block.sample_index, block.t_mono, f.silent)
+        if isinstance(self.beat, CombBeatTracker):
+            b = self.beat.process(
+                block.samples, block.sample_index, block.t_mono, f.silent, self.fast.mag
+            )
+        else:
+            b = self.beat.process(block.samples, block.sample_index, block.t_mono, f.silent)
         t = block.t_end
         pos = self.beat.pll.position(t)
         if b.discontinuity and self.bar.manual is None:
             self.bar.reset()
-        bar = self.bar.process(pos, f.bass_amp)
+        bar = self.bar.process(pos, f.bass_amp, self.slow.bands)
         ss = self._slow_snapshot
         self._seq += 1
         return MusicalState(
@@ -101,9 +114,12 @@ def run_source(
     sinks: list[Sink],
     hop: int = 512,
     bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
+    tracker: str = "comb",
 ) -> Analyser:
     """Analyse ``source`` until exhausted (or interrupted), publishing every state."""
-    a = Analyser(source.sample_rate, hop, realtime=source.realtime, bpm_range=bpm_range)
+    a = Analyser(
+        source.sample_rate, hop, realtime=source.realtime, bpm_range=bpm_range, tracker=tracker
+    )
     try:
         for block in source.blocks():
             a.overruns = source.stats.overruns

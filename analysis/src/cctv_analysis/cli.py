@@ -26,6 +26,12 @@ def _common(p: argparse.ArgumentParser) -> None:
         metavar=("LO", "HI"),
         help="fold tempo octave errors into [LO, HI) (default %(default)s)",
     )
+    p.add_argument(
+        "--tracker",
+        choices=["comb", "aubio"],
+        default="comb",
+        help="beat tracker (default comb; see docs/beat-evaluation.md)",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         "features": FEATURE_VERSION,
         "hop": args.hop,
         "bpm_range": list(args.bpm_range),
+        "tracker": args.tracker,
     }
     if args.cmd == "file":
         source = FilePcmSource(
@@ -88,7 +95,7 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGTERM, lambda *_: source.close())
     try:
-        a = run_source(source, sinks, args.hop, tuple(args.bpm_range))
+        a = run_source(source, sinks, args.hop, tuple(args.bpm_range), args.tracker)
     except KeyboardInterrupt:
         return 130
     b = a.beat.pll.state

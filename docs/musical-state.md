@@ -69,7 +69,7 @@ and live input produce the same values at the same moments
 | `beat_confidence < 0.3` or `beat_position` null | Ignored for timing (features still used) |
 | No timing for 0.5 s (analyser stopped, silence, breakdown) | `timing_source` becomes `internal`: free-runs at the last tempo and phase, and `beat_confidence` decays (τ 2 s) |
 | Features older than 0.25 s | Fade over 0.25 s back to clock-synthesised envelopes |
-| `bar_confidence ≥ 0.5` (no manual alignment) | Bars aligned from the estimate, translated into local beat numbering |
+| Bar estimate | Always reported as `bar_estimate` (local numbering). Bars are aligned from it only if `auto_bar_alignment` is on (default **off**, see [beat evaluation](beat-evaluation.md)) and `bar_confidence ≥ 0.5` |
 | Operator `B` | Manual bar alignment, which overrides estimates until cleared (`Shift+B`) |
 
 All thresholds are `MusicalClock` exports and can be set per show:

@@ -267,10 +267,11 @@ def evaluate_track(
     cache: Path = DEFAULT_CACHE,
     bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
     reference: Reference | None = None,
+    tracker: str = "comb",
 ) -> TrackResult:
     ref_all = reference or reference_for(path, cache)
     src = FilePcmSource(path, start_s=start_s, duration_s=duration_s)
-    an = Analyser(src.sample_rate, realtime=False, bpm_range=bpm_range)
+    an = Analyser(src.sample_rate, realtime=False, bpm_range=bpm_range, tracker=tracker)
     est = causal_estimate((an.process(b) for b in src.blocks()), offset_s=start_s)
     end = start_s + (src.stats.blocks * src.block_size / src.sample_rate)
     src.close()
@@ -310,6 +311,63 @@ def evaluate_track(
         first_lock_s=est.first_lock_s - start_s,
         relocks=est.relocks,
     )
+
+
+# --- Listening check -------------------------------------------------------
+
+
+def click_track(
+    n: int, sr: int, beats: F64, downbeats: F64, freq: float = 1800.0, gain: float = 0.5
+) -> npt.NDArray[np.float32]:
+    """Short sine clicks on ``beats`` (seconds); downbeats are an octave lower and longer."""
+    y = np.zeros(n, np.float32)
+    down = set(np.round(downbeats, 3))
+    for t in beats:
+        is_down = round(float(t), 3) in down
+        dur = 0.06 if is_down else 0.03
+        f = freq / 2 if is_down else freq
+        k = int(dur * sr)
+        env = np.exp(-np.arange(k) / (k / 4)).astype(np.float32)
+        c = np.sin(2 * np.pi * f * np.arange(k) / sr).astype(np.float32) * env * gain
+        i = int(t * sr)
+        if 0 <= i < n:
+            m = min(k, n - i)
+            y[i : i + m] += c[:m]
+    return y
+
+
+def render_clicks(
+    path: Path,
+    out_dir: Path,
+    start_s: float = 60.0,
+    duration_s: float = 30.0,
+    cache: Path = DEFAULT_CACHE,
+    tracker: str = "comb",
+) -> list[Path]:
+    """Write ``<stem>.ref.wav`` and ``<stem>.est.wav``: the excerpt with reference
+    or causal-estimate clicks mixed in, for checking the reference by ear."""
+    import soundfile as sf
+
+    ref = reference_for(path, cache)
+    # Analyse from a few seconds earlier so the tracker is locked in the excerpt.
+    lead = min(start_s, 10.0)
+    src = FilePcmSource(path, start_s=start_s - lead, duration_s=duration_s + lead)
+    an = Analyser(src.sample_rate, realtime=False, tracker=tracker)
+    est = causal_estimate((an.process(b) for b in src.blocks()), offset_s=start_s - lead)
+    sr = src.sample_rate
+    src.close()
+    with sf.SoundFile(str(path)) as f:
+        f.seek(int(start_s * sr))
+        music = f.read(int(duration_s * sr), dtype="float32", always_2d=True).mean(axis=1)
+    music *= 0.6 / max(1e-6, float(np.abs(music).max()))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    outs = []
+    for name, b, d in (("ref", ref.beats, ref.downbeats), ("est", est.beats, est.downbeats)):
+        clicks = click_track(len(music), sr, b - start_s, d - start_s)
+        o = out_dir / f"{path.stem[:60]}.{name}.wav"
+        sf.write(str(o), np.stack([music, music + clicks], axis=1), sr)
+        outs.append(o)
+    return outs
 
 
 # --- Reporting ------------------------------------------------------------------
@@ -392,17 +450,33 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cache", type=Path, default=DEFAULT_CACHE)
     p.add_argument("--bpm-range", nargs=2, type=float, default=(MIN_BPM, MAX_BPM))
     p.add_argument("--json", help="write per-track results and summary here")
+    p.add_argument(
+        "--clicks",
+        type=Path,
+        metavar="DIR",
+        help="instead of scoring, write 30 s excerpts (from --start, default 60 s) with "
+        "reference and estimate clicks for listening checks",
+    )
+    p.add_argument("--tracker", choices=["aubio", "comb"], default="comb")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel tracks")
     args = p.parse_args(argv)
     paths = _paths(args)
     if not paths:
         p.error("no tracks")
+    if args.clicks:
+        for path in paths:
+            for o in render_clicks(
+                path, args.clicks, args.start or 60.0, 30.0, args.cache, args.tracker
+            ):
+                print(o)
+        return 0
     job = functools.partial(
         _evaluate_or_none,
         start_s=args.start,
         duration_s=args.duration or None,
         cache=args.cache,
         bpm_range=tuple(args.bpm_range),
+        tracker=args.tracker,
     )
     if args.jobs > 1 and len(paths) > 1:
         with multiprocessing.Pool(min(args.jobs, len(paths))) as pool:

@@ -157,7 +157,14 @@ func test_low_confidence_ignored_and_stale_falls_back() -> void:
 	near(clock.uniforms()["uBassEnergy"], clock.beat_envelope(), 1e-6, "stale features fade out")
 
 
+func test_bar_estimate_is_only_a_hint_by_default() -> void:
+	clock.apply_state(_state(10.0, 120.0, 0.9, {"downbeat": 1, "bar_confidence": 0.9}), clock.time)
+	check(not clock.bar_aligned)
+	eq(clock.bar_estimate, 3, "analyser beat 1 -> local beat 1 - 10 = 3 (mod 4)")
+
+
 func test_bar_estimate_translated_to_local_numbering() -> void:
+	clock.auto_bar_alignment = true
 	clock.advance(1.0)  # local beat 2.0
 	# Analyser numbering is 8 ahead; its downbeat is beat 1 (mod 4) -> local 1 - 8 = 1 (mod 4).
 	clock.apply_state(_state(10.0, 120.0, 0.9, {"downbeat": 1, "bar_confidence": 0.8}), clock.time)

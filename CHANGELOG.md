@@ -19,6 +19,13 @@
 - Operator view: quantisation selector, bar alignment (B / Shift+B), nudge
   ([ / ]), and timing/analysis/scheduler status.
 - `tools/timing_probe.sh`: end-to-end analyser → Godot timing measurement.
+- `cctv-evaluate`: offline beat/bar evaluation against madmom references or hand
+  annotations, with mir_eval metrics and click-track rendering for listening
+  checks. Results are in `docs/beat-evaluation.md`.
+- Comb-filter beat tracker (now the default; aubio + PLL is still available with
+  `--tracker aubio`). F-measure 0.65 → 0.80, re-locks 11 → 2.6 per 4 min.
+- Downbeat estimation uses beat-synchronous spectral novelty. Automatic bar
+  alignment from estimates is off by default (`auto_bar_alignment`).
 - Milestone 1 acceptance run recorded (RTX 4070 Ti, 1080p60, 300 s: pass).
 
 ## 0.1.0 — Milestone 1 rendering substrate

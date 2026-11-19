@@ -2,11 +2,11 @@
 
 [Documentation index](../README.md#documentation)
 
-Status: **in progress**. The analyser, transport, clock following, scheduler
-and operator timing controls are implemented and tested. Still to do: Mixxx
-telemetry, PipeWire routing tooling, session recording/replay, end-to-end
-audiovisual latency measurement and reference-beat evaluation (see
-[Remaining work](#remaining-work)).
+Status: **in progress**. The analyser, transport, clock following, scheduler,
+operator timing controls and the [beat/bar evaluation](beat-evaluation.md) are
+implemented and tested. Still to do: Mixxx telemetry, PipeWire routing
+tooling, session recording/replay, and end-to-end audiovisual latency
+measurement (see [Remaining work](#remaining-work)).
 
 ## Structure
 
@@ -16,7 +16,8 @@ analysis/ (Python 3.12, uv)                         Godot
         │ PcmBlock: mono, sample_index, t_mono
   FastAnalyser   bands, envelopes, onsets  (features.py)
   SlowAnalyser   energy trend, novelty     (features.py)
-  BeatTracker    aubio "energy" + BeatPll  (beat.py)
+  CombBeatTracker  comb filter + PhaseFollower (comb.py, default)
+  BeatTracker      aubio "energy" + BeatPll     (beat.py, --tracker aubio)
   DownbeatEstimator                        (beat.py)
         │ MusicalState (state.py)
   UdpPublisher / JsonlRecorder (transport.py) ──UDP──> MusicalStateReceiver
@@ -37,10 +38,10 @@ The message format and fallback rules are specified in
 | --- | --- | --- |
 | Common live/file PCM input | done | `PcmSource` protocol. Files are read with libsndfile, either real-time paced (optionally played) or externally clocked. Live input uses PortAudio with a bounded queue that drops and counts overruns, never blocking capture. Timestamps come from ADC time |
 | Mixxx main-output routing | partial | `cctv-analyse live --device pipewire` captures from the PipeWire ALSA device. A routing script (Mixxx main → analyser node) and verification on the performance machine are pending |
-| Separate fast DSP and slow analysis | done | Fast: per 512-sample block (10.7 ms). Slow: updated per block, published at 2 Hz. Tempo/phase: aubio plus PLL per detection. About 0.1 ms per block |
+| Separate fast DSP and slow analysis | done | Fast: per 512-sample block (10.7 ms). Slow: updated per block, published at 2 Hz. Tempo/phase: comb estimate every 0.25 s. About 0.1 ms per block on average |
 | Timestamped state with confidence and freshness | done | `MusicalState` v1. Beat and bar confidence are separate. Freshness is measured by the receiver (`age_ms`, `transport_ms`) and the clock (`timing_age`) |
 | Beat-aware scheduler and continuous modulation | done | `Scheduler` targets beat positions, so events stay on the beat through tempo changes and slews. Every event has an explicit outcome and lateness. New uniforms: `uMidEnergy`, `uHighEnergy`, `uEnergyTrend`, `uBeatConfidence` |
-| Explicit bar alignment | done | Downbeat estimator (bass amplitude per beat slot, margin = confidence), operator alignment (`B`) and nudge (`[`/`]`). Bar quantisation without alignment is **rejected**, not approximated |
+| Explicit bar alignment | done | Operator alignment (`B`) and nudge (`[`/`]`). A downbeat estimator (beat-synchronous spectral novelty) is reported as a hint. Automatic alignment from it is off by default because its precision is 0.39 ([evaluation](beat-evaluation.md)). Bar quantisation without alignment is **rejected**, not approximated |
 | Optional Mixxx telemetry | pending | Controller-script adapter (see below) |
 
 ## Design decisions
@@ -48,13 +49,20 @@ The message format and fallback rules are specified in
 - **Separate process.** Analysis runs in Python, so the same code serves live
   use, offline feature extraction and training. A slow or crashed analyser
   cannot stall rendering. Godot falls back to its internal clock.
+- **Comb-filter tracker by default.** It re-estimates tempo and phase from 8 s of
+  20 Hz–2 kHz onset strength every 0.25 s, with hysteresis on phase switches.
+  On the evaluation corpus it beats aubio + PLL on every accuracy metric
+  (F 0.80 vs 0.65, re-locks 2.6 vs 11 per 4 min). First lock is slower (about 4 s
+  vs 2.6 s), because the comb needs 4 s of history. See
+  [beat-evaluation.md](beat-evaluation.md). The aubio notes below apply to
+  `--tracker aubio`.
 - **aubio `energy` onset method for tempo.** On synthetic material with offbeat
   hats, aubio's default (HFC) and spectral-flux methods lock onto the offbeat
   (about +200 ms error). `energy` follows the kick (`tests/test_beat.py::test_not_fooled_by_offbeat_hats`).
   A fixed +28 ms bias corrects aubio's early beat reports.
 - **PLL over detections.** aubio's beat output is smoothed by a phase-locked
   loop (phase gain 0.25, period gain 0.05, ±0.2 beat acceptance). After 8
-  consecutive disagreeing detections, the loop re-locks from three consistent
+  consecutive disagreeing detections (or fewer than 4 hits in the last 8), the loop re-locks from three consistent
   detections. The beat count stays continuous across re-locks, so bar
   alignment can survive.
 - **No re-lock from aubio's tempo estimate by default.** On real techno, aubio's
@@ -92,23 +100,22 @@ End to end (`tools/timing_probe.sh`, analyser real-time → UDP → headless God
 | Synthetic 126 BPM, 12 s | 68 % (lock after ~4 s) | 6.9 ms | 16.8 ms (≤ 1 frame) | ~0.3 ms/frame |
 | Real techno (Ancient Methods AM-1 A1, from 60 s), 25 s | 79 % | 13.1 ms | 17.3 ms | ~0.3 ms/frame |
 
-Real tracks, 4 min each, externally clocked: 2–3 re-locks, beat confidence
-> 0.5 for 40–60 % of the time, tempo stable to ±1 BPM within a track.
-**Accuracy against ground truth is not yet measured on real music.** The
-numbers above show stability and following, not correctness. See reference-beat
-evaluation below.
+The table above was measured with the initial aubio tracker. With the comb
+tracker, the same probe gives a p95 phase error of 2.7 ms (synthetic) and
+3.7 ms (real techno).
+
+Accuracy on real music against madmom references (16 tracks): F-measure 0.80,
+tempo correct 92 % of locked time, 2.6 re-locks per 4 min. See
+[beat-evaluation.md](beat-evaluation.md).
 
 These are clock-versus-analyser figures. They do not include projector latency
 or the audio output path. That requires the end-to-end latency measurement.
 
 ## Remaining work
 
-1. **Reference-beat evaluation.** Annotate or compute offline reference beats
-   (madmom/librosa, kept outside the causal path) for a handful of tracks and
-   sets. Report F-measure, phase error and tempo error, then tune the PLL and
-   the downbeat estimator against them. Downbeat estimation on real music is
-   currently weak (bar confidence ≥ 0.5 for 5–75 % of the time depending on
-   the track). Operator alignment is the reliable path for now.
+1. **Evaluation follow-up.** Listening checks of the suspect references, DJ
+   sets in the corpus, the 4:3 cross-rhythm case, and a better downbeat
+   estimator (see [beat-evaluation.md](beat-evaluation.md#next-steps)).
 2. **PipeWire routing.** `tools/route_mixxx.sh`: create or select a capture node
    and link Mixxx's main output ports to it with `pw-link`, and record the
    route in the session header. Verify on the performance machine that cueing
@@ -133,7 +140,7 @@ or the audio output path. That requires the end-to-end latency measurement.
 
 - `--bpm-range` folds octave errors. Material outside it (e.g. 87 vs 174 DnB)
   is tracked at half or double tempo.
-- Lock takes about 3–4 s after the start of music or a hard cut.
+- Lock takes about 4 s after the start of music or a hard cut, and longer for beatless intros.
 - Breakdowns without kicks lose lock. The clock free-runs at the last tempo
   with decaying confidence, which is the intended fallback.
 - Beat detections are rejected while the input has been silent for 0.5 s.

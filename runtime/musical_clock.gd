@@ -50,7 +50,11 @@ enum Mode { LIVE, REPLAY }
 @export var phase_slew_time := 0.3
 ## Phase errors above this (beats) are jumped when the source flags a discontinuity.
 @export var jump_threshold := 0.25
-## Bar estimates at or above this confidence align bars (if not manual).
+## Let analyser bar estimates align bars. Off by default: on real techno the
+## estimate is often consistently a beat off (docs/beat-evaluation.md), so a
+## wrong bar is likelier than none. Estimates are still reported (bar_estimate).
+@export var auto_bar_alignment := false
+## Bar estimates at or above this confidence align bars (if enabled and not manual).
 @export var bar_min_confidence := 0.5
 ## Shift visuals earlier (s) to compensate projector/display latency.
 @export var latency_compensation := 0.0
@@ -63,6 +67,8 @@ var timing_source := "internal"
 ## "none", "estimate" or "manual".
 var bar_source := "none"
 var bar_confidence := 0.0
+## Latest analyser downbeat estimate in local numbering (-1: none), aligned or not.
+var bar_estimate := -1
 
 var time := 0.0
 var frame := 0
@@ -239,19 +245,20 @@ func _target_position(age: float) -> float:
 
 
 func _update_bar(s: Dictionary, at: float) -> void:
-	if bar_source == "manual":
-		return
 	var conf := float(s.get("bar_confidence", 0.0))
 	var db := int(s.get("downbeat", -1))
-	if db < 0 or conf < bar_min_confidence:
+	var shift := roundi(_beat_pos - _target_position(time - at))
+	bar_estimate = posmod(db + shift, beats_per_bar) if db >= 0 else -1
+	if bar_source == "manual":
+		return
+	if db < 0 or conf < bar_min_confidence or not auto_bar_alignment:
 		if bar_source == "estimate":
 			bar_aligned = false
 			bar_source = "none"
 		bar_confidence = conf
 		return
 	# Translate the analyser's beat numbering into ours.
-	var shift := roundi(_beat_pos - _target_position(time - at))
-	_downbeat = posmod(db + shift, beats_per_bar)
+	_downbeat = bar_estimate
 	bar_aligned = true
 	bar_source = "estimate"
 	bar_confidence = conf
@@ -314,6 +321,7 @@ func describe() -> Dictionary:
 		"bar_aligned": bar_aligned,
 		"bar_source": bar_source,
 		"bar_confidence": bar_confidence,
+		"bar_estimate": bar_estimate,
 		"phase_trim": _phase_trim,
 		"stats": stats,
 	}

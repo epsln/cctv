@@ -9,9 +9,11 @@ only meaningful with bar confidence > 0.
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
 
 import aubio
+import numpy as np
 
 from .pcm import Samples
 
@@ -66,6 +68,8 @@ class BeatPll:
         tolerance: float = 0.2,
         relock_after: int = 8,
         hint_relock_after: int | None = None,
+        hit_window: int = 8,
+        min_hits: int = 4,
         confidence_tau_beats: float = 6.0,
         lost_after_s: float = 2.5,
         bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
@@ -76,6 +80,8 @@ class BeatPll:
         self.tolerance = tolerance
         self.relock_after = relock_after
         self.hint_relock_after = hint_relock_after
+        self.min_hits = min_hits
+        self._recent: deque[bool] = deque(maxlen=hit_window)
         self.stats = {"hits": 0, "misses": 0, "relock_miss": 0, "relock_hint": 0}
         self.k_conf = 1.0 - math.exp(-1.0 / confidence_tau_beats)
         self.lost_after_s = lost_after_s
@@ -111,6 +117,7 @@ class BeatPll:
                 self.stats["relock_hint"] += 1
         elif abs(err) <= self.tolerance:
             self._misses = 0
+            self._recent.append(True)
             self.stats["hits"] += 1
             # Phase: pull the loop towards the detection.
             self.n0 = pos - self.alpha * err
@@ -124,9 +131,13 @@ class BeatPll:
             s.last_beat_t = tb
         else:
             self._misses += 1
+            self._recent.append(False)
             self.stats["misses"] += 1
             s.confidence += self.k_conf * (0.0 - s.confidence)
-            if self._misses >= self.relock_after and self._try_lock(
+            # Re-lock after a run of misses, or when most recent detections disagree
+            # (a loop drifted to the wrong tempo still gets occasional chance hits).
+            losing = len(self._recent) == self._recent.maxlen and sum(self._recent) < self.min_hits
+            if (self._misses >= self.relock_after or losing) and self._try_lock(
                 tb, hint, continue_from=pos, already_added=True
             ):
                 self.stats["relock_miss"] += 1
@@ -165,6 +176,7 @@ class BeatPll:
             self.n0 = float(math.ceil(continue_from - 0.5))  # keep the count continuous
         self._misses = 0
         self._hint_misses = 0
+        self._recent.clear()
         self._pending.clear()
         s.locked = True
         s.bpm = hint
@@ -206,6 +218,7 @@ class BeatTracker:
         self.hop = hop
         self.bias_s = bias_s
         self._tempo = aubio.tempo(method, win, hop, sample_rate)
+
         self._tempo.set_silence(-60.0)
         self._last = 0
         self.pll = BeatPll(bpm_range=bpm_range)
@@ -246,32 +259,55 @@ class BarState:
 
 
 class DownbeatEstimator:
-    """Score each beat-in-bar hypothesis by low-frequency energy on the beat.
+    """Score each beat-in-bar hypothesis with beat-synchronous evidence.
 
-    House/techno downbeats usually carry the strongest kick/bass and phrase
-    changes. Scores decay so the estimate follows the mix. The confidence is
-    the margin between the best and second-best hypotheses. Beat phase alone
-    never implies a bar; consumers must check ``confidence``.
+    Two cues, weighted by ``w_bass`` and ``w_novelty``:
+
+    - bass: peak bass amplitude at the start of the beat, relative to the
+      loudest beat of the last bar. This works when downbeat kicks are accented.
+    - novelty: positive spectral change of the beat's mean spectrum against the
+      previous beat, relative to the recent mean. Pattern and harmony changes
+      tend to happen on bar starts.
+
+    Defaults come from docs/beat-evaluation.md. Novelty beats bass on real
+    techno (downbeat F 0.31 vs 0.03), but it is still often consistently one
+    beat off, so estimates are hints. MusicalClock only uses them when
+    ``auto_bar_alignment`` is enabled.
+
+    Scores decay over ``decay_bars``. Confidence is the margin between the best
+    and second-best hypotheses. Beat phase alone never implies a bar; consumers
+    must check ``confidence``.
     """
 
     def __init__(
-        self, beats_per_bar: int = 4, decay_bars: float = 8.0, min_beats: int = 16
+        self,
+        beats_per_bar: int = 4,
+        decay_bars: float = 16.0,
+        min_beats: int = 16,
+        w_bass: float = 0.0,
+        w_novelty: float = 1.0,
+        confidence_gain: float = 4.0,
     ) -> None:
         self.bpb = beats_per_bar
         self.decay = math.exp(-1.0 / (decay_bars * beats_per_bar))
         self.min_beats = min_beats
-        self.scores = [0.0] * beats_per_bar
-        self.beats = 0
-        self._last_index: int | None = None
-        self._peak = 0.0
-        self._recent = [0.0] * beats_per_bar
+        self.w_bass = w_bass
+        self.w_novelty = w_novelty
+        self.confidence_gain = confidence_gain
         self.manual: int | None = None
         self.state = BarState()
+        self.reset()
 
     def reset(self) -> None:
         self.scores = [0.0] * self.bpb
         self.beats = 0
-        self._last_index = None
+        self._last_index: int | None = None
+        self._peak = 0.0
+        self._recent = [0.0] * self.bpb
+        self._acc: Samples | None = None
+        self._acc_n = 0
+        self._prev_spec: Samples | None = None
+        self._nov_mean = 0.0
 
     def align(self, downbeat_index: int) -> None:
         """Operator override: beat ``downbeat_index`` is a bar's first beat."""
@@ -280,7 +316,26 @@ class DownbeatEstimator:
     def clear_manual(self) -> None:
         self.manual = None
 
-    def process(self, position: float, bass_amp: float) -> BarState:
+    def _bank(self, slot: int) -> None:
+        self._recent[slot] = self._peak
+        ref = max(self._recent) or 1.0
+        bass = self._peak / ref
+        nov = 0.0
+        if self._acc is not None and self._acc_n:
+            spec = (self._acc / self._acc_n).astype(np.float32)
+            if self._prev_spec is not None:
+                raw = float(np.maximum(spec - self._prev_spec, 0.0).sum())
+                self._nov_mean += 0.1 * (raw - self._nov_mean)
+                nov = raw / (self._nov_mean + 1e-9)
+            self._prev_spec = spec
+        self.scores = [v * self.decay for v in self.scores]
+        self.scores[slot] += self.w_bass * bass + self.w_novelty * nov
+        self.beats += 1
+        self._peak = 0.0
+        self._acc = None
+        self._acc_n = 0
+
+    def process(self, position: float, bass_amp: float, bands: Samples | None = None) -> BarState:
         s = self.state
         if math.isnan(position):
             self._last_index = None
@@ -290,26 +345,22 @@ class DownbeatEstimator:
             return s
         idx = math.floor(position)
         if self._last_index is not None and idx != self._last_index:
-            # Bank the previous beat's peak, normalised by the bar's loudest beat
-            # so loudness changes in the mix do not dominate the scores.
-            slot = self._last_index % self.bpb
-            self._recent[slot] = self._peak
-            ref = max(self._recent) or 1.0
-            self.scores = [v * self.decay for v in self.scores]
-            self.scores[slot] += self._peak / ref
-            self.beats += 1
-            self._peak = 0.0
+            self._bank(self._last_index % self.bpb)
         self._last_index = idx
         # Peak bass amplitude in the first ~quarter of each beat (the kick).
         if position - idx < 0.25:
             self._peak = max(self._peak, bass_amp)
+        if bands is not None:
+            self._acc = bands.astype(np.float32) if self._acc is None else self._acc + bands
+            self._acc_n += 1
         if self.manual is not None:
             s.downbeat, s.confidence, s.source = self.manual, 1.0, "manual"
         elif self.beats >= self.min_beats:
             ranked = sorted(range(self.bpb), key=lambda i: self.scores[i], reverse=True)
             best, second = self.scores[ranked[0]], self.scores[ranked[1]]
             s.downbeat = ranked[0]
-            s.confidence = max(0.0, min(1.0, (best - second) / (best + 1e-9) * 4.0))
+            margin = (best - second) / (abs(best) + 1e-9)
+            s.confidence = max(0.0, min(1.0, margin * self.confidence_gain))
             s.source = "estimate"
         else:
             s.downbeat, s.confidence, s.source = -1, 0.0, "none"
