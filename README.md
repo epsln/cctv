@@ -4,14 +4,17 @@ An autonomous VJ instrument: an AI artistic director over a beat-aware audiovisu
 instrument. The agent chooses composition and pacing; the runtime executes precise
 musical events and continuous modulation.
 
-This repository contains the **Milestone 1 rendering substrate**: a Godot 4.5
-(GDScript) prototype with a replaceable video backend. The previous C++/OpenGL
-implementation lives in a separate repository (`cctvcpp`).
+This repository contains the **Milestone 1 rendering substrate** (a Godot 4.5
+GDScript prototype with a replaceable video backend) and the **Milestone 2
+musical runtime** (in progress): a causal Python audio analyser
+(`analysis/`) that publishes timestamped musical state, which Godot's clock and
+beat scheduler follow. The previous C++/OpenGL implementation lives in a
+separate repository (`cctvcpp`).
 
 ## Quick start
 
 Requirements: Godot 4.5 stable (found via `$GODOT`, `.godot-bin/godot`, or `godot` on PATH), `ffmpeg`, `pdftoppm` (poppler-utils),
-`xvfb-run` for display-less test runs. Lint: `gdlint runtime sources tests` (gdtoolkit 4).
+`xvfb-run` for display-less test runs. Lint: `gdlint runtime sources tests tools` (gdtoolkit 4).
 
 ```sh
 tools/get_godot.sh                   # downloads Godot 4.5 to .godot-bin/ (if not installed)
@@ -21,6 +24,16 @@ tools/test.sh                        # tests (OpenGL via Xvfb if no display)
 tools/test.sh headless               # tests without a renderer (pixel checks skipped)
 tools/bench.sh 60                    # 60 s benchmark -> bench/results/*.json
 tools/render_movie.sh -t 10 out.avi  # deterministic offline render (Movie Maker)
+```
+
+Musical runtime (requires [uv](https://docs.astral.sh/uv/) and Python 3.12):
+
+```sh
+cd analysis && uv sync                               # analyser + dev tools
+uv run cctv-analyse file set.flac --play             # play a recorded set and publish state
+uv run cctv-analyse live --device pipewire           # live input (route Mixxx main to it)
+uv run pytest && uv run ruff check && uv run mypy    # analyser tests/lint/types
+tools/timing_probe.sh [AUDIO] [SECONDS]              # end-to-end timing measurement
 ```
 
 See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
@@ -36,6 +49,7 @@ See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
 | `scenes/` | Performance root, operator view, benchmark |
 | `tools/` | Asset transcoding, PDF rasterization, sample generation, benchmark launcher |
 | `tests/` | Headless test runner and unit/integration tests |
+| `analysis/` | Python (uv) audio analyser: PCM sources, features, beat/bar tracking, state transport |
 
 ## Documentation
 
@@ -52,6 +66,8 @@ See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
 | [Development roadmap](docs/09-development-roadmap.md) | Ordered implementation milestones and acceptance criteria |
 | [Milestone 1 implementation](docs/milestone-1.md) | What was built, design decisions, limitations |
 | [Benchmark](docs/benchmark.md) | Acceptance workload, procedure and results |
+| [Milestone 2 implementation](docs/milestone-2.md) | Musical runtime: analyser, clock following, scheduler, status, plan |
+| [Musical state protocol](docs/musical-state.md) | Message schema, timing semantics, transport and fallback |
 
 ## Branching
 

@@ -6,3 +6,7 @@
 /assets/sample/
 __pycache__/
 /.godot-bin/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

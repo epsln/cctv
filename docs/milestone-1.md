@@ -2,9 +2,10 @@
 
 [Documentation index](../README.md#documentation)
 
-Status: **implemented prototype (v0.1.0)**. Acceptance against the 1080p60
-target is still **pending**: it has to be measured on the performance machine
-(see [benchmark](benchmark.md)).
+Status: **implemented prototype (v0.1.0)**. A 300 s run at 1080p60 passed the
+acceptance criteria on 2026-11-17 (RTX 4070 Ti: 59.8 fps, 0.79 % late frames,
+p99 17.3 ms). Late frames come from synchronous composition builds and seeks.
+The long-session (2 h) memory run is still outstanding. See [benchmark](benchmark.md#results).
 
 ## Runtime structure
 

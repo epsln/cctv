@@ -1,0 +1,51 @@
+[project]
+name = "cctv-analysis"
+version = "0.1.0"
+description = "Causal audio analysis publishing timestamped musical state for the CCTV runtime"
+requires-python = ">=3.12"
+dependencies = [
+    "aubio==0.4.9",  # see [tool.uv.extra-build-variables]
+    "numpy>=2",
+    "sounddevice>=0.5.6",
+    "soundfile>=0.14.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.6",
+]
+
+[tool.uv.extra-build-variables]
+# aubio 0.4.9 (last PyPI release, 2019) predates GCC 14 strict pointer checks and
+# FFmpeg 5+. Build it without system libs (no libav/sndfile I/O: audio files are
+# read with soundfile); only its DSP is used.
+aubio = { CFLAGS = "-Wno-error=incompatible-pointer-types", PKG_CONFIG_LIBDIR = "/nonexistent" }
+
+[project.scripts]
+cctv-analyse = "cctv_analysis.cli:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "NPY", "PERF"]
+
+[tool.mypy]
+strict = true
+packages = ["cctv_analysis"]
+mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["aubio", "sounddevice", "soundfile"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

@@ -31,8 +31,30 @@ func test_replay_clock_advances_per_frame() -> void:
 func test_quantized_trigger_starts_on_next_beat() -> void:
 	pr.clock.seek(0.1)
 	eq(pr.trigger("b", "crossfade", 1.0, true), OK)
-	near(pr.compositor.t_start, 0.5, 1e-6, "next beat at 120bpm")
-	near(pr.compositor.duration, 0.5, 1e-6, "1 beat")
+	check(not pr.compositor.is_transitioning(), "waits for the beat")
+	for i in 20:
+		await frames(1)
+		if pr.compositor.is_transitioning():
+			break
+	near(pr.compositor.t_start, 0.5, 1.0 / 30.0 + 1e-6, "next beat at 120bpm")
+	near(pr.compositor.duration, 0.5, 1e-3, "1 beat")
+	var ev: Dictionary = pr.scheduler.last_event()
+	eq(ev["status"], "executed")
+
+
+func test_newer_trigger_replaces_pending() -> void:
+	pr.clock.seek(0.1)
+	eq(pr.trigger("b", "crossfade", 1.0, true), OK)
+	eq(pr.trigger("a", "wipe", 1.0, "grid:4"), OK)
+	eq(pr.scheduler.describe()["cancelled"], 1)
+	eq(pr.scheduler.describe()["pending"], 1)
+
+
+func test_next_bar_requires_alignment() -> void:
+	eq(pr.trigger("b", "crossfade", 1.0, "next_bar"), ERR_UNAVAILABLE)
+	pr.clock.align_bar_now()
+	eq(pr.trigger("b", "crossfade", 1.0, "next_bar"), OK)
+	eq(pr.trigger("b", "crossfade", 1.0, "sometime"), ERR_INVALID_PARAMETER)
 
 
 func test_invalid_composition_keeps_current() -> void:
@@ -52,7 +74,7 @@ func test_full_transition_in_replay() -> void:
 func test_status_and_output() -> void:
 	await frames(2)
 	var s := pr.status()
-	for k in ["time", "frame", "transition", "metrics", "sources"]:
+	for k in ["time", "frame", "transition", "metrics", "sources", "timing", "scheduler"]:
 		check(s.has(k), k)
 	check(pr.output_texture() != null)
 
