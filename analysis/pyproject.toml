@@ -20,6 +20,10 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.6",
 ]
+eval = [
+    "madmom",
+    "mir-eval>=0.8.2",
+]
 
 [tool.uv.extra-build-variables]
 # aubio 0.4.9 (last PyPI release, 2019) predates GCC 14 strict pointer checks and
@@ -27,8 +31,12 @@ dev = [
 # read with soundfile); only its DSP is used.
 aubio = { CFLAGS = "-Wno-error=incompatible-pointer-types", PKG_CONFIG_LIBDIR = "/nonexistent" }
 
+[tool.uv.sources]
+madmom = { git = "https://github.com/CPJKU/madmom" }
+
 [project.scripts]
 cctv-analyse = "cctv_analysis.cli:main"
+cctv-evaluate = "cctv_analysis.evaluate:main"
 
 [tool.ruff]
 line-length = 100
@@ -43,7 +51,7 @@ packages = ["cctv_analysis"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["aubio", "sounddevice", "soundfile"]
+module = ["aubio", "sounddevice", "soundfile", "madmom.*", "mir_eval"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

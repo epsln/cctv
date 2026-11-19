@@ -39,7 +39,7 @@ jobs:
           python-version: "3.12"
       - name: System dependencies (libsndfile, PortAudio)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsndfile1 libportaudio2
-      - run: uv sync --locked
+      - run: uv sync --locked --group eval
       - run: uv run ruff format --check
       - run: uv run ruff check
       - run: uv run mypy src tests
