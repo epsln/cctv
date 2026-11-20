@@ -2,11 +2,24 @@
 
 [Documentation index](../README.md#documentation)
 
-Status: **in progress**. The analyser, transport, clock following, scheduler,
-operator timing controls and the [beat/bar evaluation](beat-evaluation.md) are
-implemented and tested. Still to do: Mixxx telemetry, PipeWire routing
-tooling, session recording/replay, and end-to-end audiovisual latency
-measurement (see [Remaining work](#remaining-work)).
+Status: **closed (core complete)**. The analyser, transport, clock following,
+scheduler, operator timing controls, launcher and the
+[beat/bar evaluation](beat-evaluation.md) are implemented and tested. Recorded
+input meets the acceptance criteria: beat F 0.88 on a 145 min DJ set, measured
+event timing, and a defined fallback when timing is lost. Live Mixxx input
+still needs a one-time check on the performance machine. The remaining items
+are deferred (see [Deferred work](#deferred-work)).
+
+## Running
+
+```sh
+tools/run.sh file set.wav            # play a recorded set; analyser + Godot
+tools/run.sh live                    # live input, then in another shell:
+tools/route_mixxx.sh                 # link Mixxx main output -> analyser (pw-link)
+CCTV_GODOT_ARGS="--projector-screen=1" tools/run.sh live   # with projector
+```
+
+Godot runs with its operator window. Press `B` on a "one" to align bars.
 
 ## Structure
 
@@ -111,15 +124,16 @@ tempo correct 92 % of locked time, 2.6 re-locks per 4 min. See
 These are clock-versus-analyser figures. They do not include projector latency
 or the audio output path. That requires the end-to-end latency measurement.
 
-## Remaining work
+## Deferred work
 
-1. **Evaluation follow-up.** Listening checks of the suspect references, DJ
-   sets in the corpus, the 4:3 cross-rhythm case, and a better downbeat
-   estimator (see [beat-evaluation.md](beat-evaluation.md#next-steps)).
-2. **PipeWire routing.** `tools/route_mixxx.sh`: create or select a capture node
-   and link Mixxx's main output ports to it with `pw-link`, and record the
-   route in the session header. Verify on the performance machine that cueing
-   and other desktop audio are excluded.
+1. **Live routing check (next session at the decks).** Run `tools/run.sh live`
+   and `tools/route_mixxx.sh`, and confirm that only the main mix reaches the
+   analyser (no headphone cue). Port-name patterns are heuristics; see
+   `--list`. Recording the route in the session header moves to Milestone 5.
+2. **Evaluation follow-up (low priority).** Listening checks of suspect
+   references, cross-rhythm passages, and a better downbeat estimator
+   ([beat-evaluation.md](beat-evaluation.md#next-steps)). Beat tracking is
+   good enough for the visuals. Revisit only if it shows on stage.
 3. **Mixxx telemetry adapter.** A controller-script mapping that samples per-deck
    `bpm`, `beat_distance`, `play`, `volume`, `pregain` and `[Master] crossfader`
    and forwards them to a small bridge. The bridge chooses an audible reference
@@ -127,10 +141,10 @@ or the audio output path. That requires the end-to-end latency measurement.
    `timing_source: "mixxx"` with the same schema. It sits behind a flag, and
    audio-only remains the fallback. Mixxx controller APIs must be checked
    against the installed version first.
-4. **Recording and replay.** A session directory with the audio, the state JSONL,
+4. **Recording and replay → Milestone 5.** A session directory with the audio, the state JSONL,
    telemetry, the route and versions. A Godot REPLAY-mode reader applies recorded
    states by `t_audio` against the replay clock.
-5. **Audiovisual latency.** A click/flash test that measures audio heard →
+5. **Audiovisual latency (at the venue).** A click/flash test that measures audio heard →
    projected frame (photodiode/camera, or software via capture timestamps)
    and sets `latency_compensation` per venue setup.
 6. **Long-session soak.** Run the analyser and benchmark together for 2 h to

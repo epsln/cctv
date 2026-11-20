@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Milestone 2 musical runtime (in progress)
+## Unreleased — Milestone 2 musical runtime
 
 - `analysis/`: Python 3.12 / uv package `cctv-analysis` with the `cctv-analyse` CLI.
   It provides file (real-time, played, or externally clocked) and live PortAudio/PipeWire
@@ -26,6 +26,8 @@
   `--tracker aubio`). F-measure 0.65 → 0.80, re-locks 11 → 2.6 per 4 min.
 - Downbeat estimation uses beat-synchronous spectral novelty. Automatic bar
   alignment from estimates is off by default (`auto_bar_alignment`).
+- `tools/run.sh` (analyser + Godot launcher) and `tools/route_mixxx.sh` (PipeWire links).
+- Evaluation on a recorded 145 min DJ set: beat F 0.88, tempo correct 94 % of the time.
 - Milestone 1 acceptance run recorded (RTX 4070 Ti, 1080p60, 300 s: pass).
 
 ## 0.1.0 — Milestone 1 rendering substrate

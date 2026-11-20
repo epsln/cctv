@@ -6,7 +6,7 @@ musical events and continuous modulation.
 
 This repository contains the **Milestone 1 rendering substrate** (a Godot 4.5
 GDScript prototype with a replaceable video backend) and the **Milestone 2
-musical runtime** (in progress): a causal Python audio analyser
+musical runtime**: a causal Python audio analyser
 (`analysis/`) that publishes timestamped musical state, which Godot's clock and
 beat scheduler follow. The previous C++/OpenGL implementation lives in a
 separate repository (`cctvcpp`).
@@ -29,6 +29,8 @@ tools/render_movie.sh -t 10 out.avi  # deterministic offline render (Movie Maker
 Musical runtime (requires [uv](https://docs.astral.sh/uv/) and Python 3.12):
 
 ```sh
+tools/run.sh file set.wav                            # analyser + Godot, recorded set
+tools/run.sh live && tools/route_mixxx.sh            # live: link Mixxx main output
 cd analysis && uv sync                               # analyser + dev tools
 uv run cctv-analyse file set.flac --play             # play a recorded set and publish state
 uv run cctv-analyse live --device pipewire           # live input (route Mixxx main to it)
