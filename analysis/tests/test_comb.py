@@ -53,3 +53,13 @@ def test_follower_ignores_weak_estimates() -> None:
     f = PhaseFollower()
     f.observe(_est(0.0, 0.5, 0.0, sal=0.05))
     assert not f.state.locked and math.isnan(f.position(1.0))
+
+
+def test_locks_correctly_after_leading_silence() -> None:
+    """Live case: the analyser starts before the music (regression: wrong 182 BPM lock)."""
+    y = np.concatenate([np.zeros(int(SR * 4.6), np.float32), beat_track(SR, 128.0, 20.0, 0.3)])
+    a = Analyser(SR, realtime=False, tracker="comb")
+    states = [a.process(b) for b in blocks(y, SR)]
+    last = states[-1]
+    assert abs(last.bpm - 128.0) < 1.0
+    assert last.beat_confidence > 0.5

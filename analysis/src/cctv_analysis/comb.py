@@ -90,12 +90,16 @@ class CombEstimator:
             int(60.0 * frame_rate / bpm_range[0]) + 2,
         )
         self.locked_bpm: float | None = None
+        self.active = 0
 
-    def push(self, value: float) -> None:
+    def push(self, value: float, silent: bool = False) -> None:
         self.buf.append(value)
+        self.active = 0 if silent else self.active + 1
 
     def ready(self) -> bool:
-        return len(self.buf) >= self.n // 2
+        """At least half a window of *music* since the last silence: estimates
+        from mostly-silent history lock to arbitrary tempi."""
+        return self.active >= self.n // 2
 
     def _prior(self, bpm: F64) -> F64:
         p = self.p
@@ -207,6 +211,7 @@ class PhaseFollower:
         tolerance: float = 0.2,
         switch_after: int = 12,
         tempo_tolerance: float = 0.04,
+        lost_switch_after: int = 12,
         confidence_tau: float = 8.0,
     ) -> None:
         self.alpha = alpha
@@ -215,6 +220,7 @@ class PhaseFollower:
         self.tolerance = tolerance
         self.switch_after = switch_after
         self.tempo_tolerance = tempo_tolerance
+        self.lost_switch_after = lost_switch_after
         self.k_conf = 1.0 - math.exp(-1.0 / confidence_tau)
         self.period = 0.0
         self.t0 = 0.0
@@ -271,7 +277,9 @@ class PhaseFollower:
             else:
                 self._disagree = 1
             self._candidate = (err, e.period_s)
-            if self._disagree >= self.switch_after:
+            # A lock that has lost all confidence is abandoned quickly.
+            needed = self.switch_after if s.confidence >= 0.05 else self.lost_switch_after
+            if self._disagree >= needed:
                 self.n0 = float(round(pos))
                 self.t0 = e.last_beat_t
                 self.period = e.period_s
@@ -331,7 +339,7 @@ class CombBeatTracker:
         if mag is None:
             raise ValueError("CombBeatTracker needs the block magnitude spectrum")
         self.pll.state.discontinuity = False
-        self.est.push(0.0 if silent else self.oss(mag))
+        self.est.push(0.0 if silent else self.oss(mag), silent)
         self._n += 1
         t_end = t_mono + len(x) / self.sr
         if self._n % self._every == 0 and not silent:

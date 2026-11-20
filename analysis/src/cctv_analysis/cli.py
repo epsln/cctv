@@ -92,6 +92,12 @@ def main(argv: list[str] | None = None) -> int:
         device = int(args.device) if str(args.device).isdigit() else args.device
         source = LivePcmSource(device, args.rate, args.channels, args.hop)
         header.update(source="live", device=args.device)
+        if str(args.device) == "pipewire":
+            print(
+                "cctv-analyse: capturing from PipeWire node 'cctv-analyser' (not auto-connected); "
+                "link Mixxx's main output with tools/route_mixxx.sh",
+                file=sys.stderr,
+            )
     header.update(sample_rate=source.sample_rate, realtime=source.realtime)
 
     sinks: list[Sink] = []
@@ -107,6 +113,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except KeyboardInterrupt:
         return 130
+    except RuntimeError as e:
+        print(f"cctv-analyse: {e}", file=sys.stderr)
+        return 1
     b = a.beat.pll.state
     print(
         f"blocks={source.stats.blocks} overruns={source.stats.overruns} "
