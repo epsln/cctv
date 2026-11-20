@@ -58,6 +58,41 @@ Per track, the comb tracker scores F ≥ 0.92 on 9 of 16 tracks and F ≥ 0.80 o
 | DJ Sun – Uh Ah | 0.47 / 0.51 | Every band has more onset energy *between* reference beats. Suspect the reference itself (listening check needed) |
 | Vittorio di Mango – Kura Kura | 0.44 / 0.20 | Tracked at 4:3 of the reference tempo (166 vs 125 BPM) for most of the excerpt (cross-rhythm) |
 
+## Recorded DJ set (2024-06-21, 145 min, 35 tracks, ~154 BPM)
+
+`cctv-evaluate SET.wav --cue SET.cue --duration 0` scores the whole set, each
+cue track, the first 60 s after each cue (transitions) and the rest of each
+track (steady). The madmom reference is computed in overlapping 120 s chunks.
+
+| Tracker | Whole-set F | CMLt | Tempo correct | Transitions F | Steady F | Re-locks (set) |
+| --- | --- | --- | --- | --- | --- | --- |
+| aubio + PLL | 0.39 | 0.34 | 0.79 | 0.41 | 0.40 | 434 |
+| comb, first version | 0.74 | 0.59 | 0.65 | 0.72 | 0.73 | 208 |
+| **comb, current** | **0.88** | **0.86** | **0.94** | **0.87** | **0.87** | **75** |
+
+Corpus with the current tracker: F 0.84, tempo correct 0.91, 1.4 re-locks per 4 min.
+
+The set exposed two problems that the single tracks did not:
+
+- Tracks 20–31 were tracked at 2/3 or 1/2 tempo (103/78 vs 154 BPM). Rolling
+  off-beat bass makes the 3:2 grid fit as well as the true pulse, and the narrow
+  "locked" tempo prior kept the wrong lock alive for minutes. Fixes:
+  - Rank the top 3 tempo candidates by beat-grid fit plus half-period
+    (subdivision) fit.
+  - Drop the locked prior.
+  - Centre the global prior on 135 BPM.
+- Tempo could drift with estimates that agreed on phase but not on tempo. The
+  follower now accepts an update only if the tempo is within 4 %. A different
+  tempo must win 12 consecutive updates before it switches.
+
+Transitions score as well as steady parts. Remaining weak spots are
+cross-rhythm passages (e.g. around 80 min, where even madmom reports 207 BPM).
+There the confidence drops and the Godot clock free-runs, which is the
+intended fallback.
+
+The tempo prior is tuned on this library (hard techno, 125–170 BPM). For other
+genres, set `cctv-analyse --tempo-prior BPM`.
+
 ## What changed and why
 
 1. **Windowed re-lock in the aubio PLL.** A loop that had drifted to the wrong

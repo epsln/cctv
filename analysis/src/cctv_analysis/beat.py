@@ -287,6 +287,7 @@ class DownbeatEstimator:
         w_bass: float = 0.0,
         w_novelty: float = 1.0,
         confidence_gain: float = 4.0,
+        evidence_floor: float = 8.0,
     ) -> None:
         self.bpb = beats_per_bar
         self.decay = math.exp(-1.0 / (decay_bars * beats_per_bar))
@@ -294,6 +295,7 @@ class DownbeatEstimator:
         self.w_bass = w_bass
         self.w_novelty = w_novelty
         self.confidence_gain = confidence_gain
+        self.evidence_floor = evidence_floor
         self.manual: int | None = None
         self.state = BarState()
         self.reset()
@@ -326,7 +328,9 @@ class DownbeatEstimator:
             if self._prev_spec is not None:
                 raw = float(np.maximum(spec - self._prev_spec, 0.0).sum())
                 self._nov_mean += 0.1 * (raw - self._nov_mean)
-                nov = raw / (self._nov_mean + 1e-9)
+                # Relative spectral change (1.0 = 2 % of the beat's spectrum). Absolute,
+                # not normalised by recent novelty, so a static loop yields no evidence.
+                nov = raw / (0.02 * float(spec.sum()) + 1e-9)
             self._prev_spec = spec
         self.scores = [v * self.decay for v in self.scores]
         self.scores[slot] += self.w_bass * bass + self.w_novelty * nov
@@ -351,7 +355,8 @@ class DownbeatEstimator:
         if position - idx < 0.25:
             self._peak = max(self._peak, bass_amp)
         if bands is not None:
-            self._acc = bands.astype(np.float32) if self._acc is None else self._acc + bands
+            b32 = bands.astype(np.float32)
+            self._acc = b32 if self._acc is None else self._acc + b32
             self._acc_n += 1
         if self.manual is not None:
             s.downbeat, s.confidence, s.source = self.manual, 1.0, "manual"
@@ -359,7 +364,8 @@ class DownbeatEstimator:
             ranked = sorted(range(self.bpb), key=lambda i: self.scores[i], reverse=True)
             best, second = self.scores[ranked[0]], self.scores[ranked[1]]
             s.downbeat = ranked[0]
-            margin = (best - second) / (abs(best) + 1e-9)
+            # evidence_floor keeps weak but consistent differences from looking certain.
+            margin = (best - second) / (abs(best) + self.evidence_floor)
             s.confidence = max(0.0, min(1.0, margin * self.confidence_gain))
             s.source = "estimate"
         else:

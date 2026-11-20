@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator
 from typing import Protocol
 
 from .beat import MAX_BPM, MIN_BPM, BeatTracker, DownbeatEstimator
-from .comb import CombBeatTracker
+from .comb import CombBeatTracker, CombParams
 from .features import FastAnalyser, SlowAnalyser
 from .pcm import PcmBlock, PcmSource
 from .state import MusicalState
@@ -29,6 +29,7 @@ class Analyser:
         slow_every_s: float = 0.5,
         bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
         tracker: str = "comb",
+        tempo_prior: float | None = None,
     ) -> None:
         self.sr = sample_rate
         self.hop = hop
@@ -37,7 +38,10 @@ class Analyser:
         self.slow = SlowAnalyser(sample_rate, hop, len(self.fast.mag))
         self.beat: BeatTracker | CombBeatTracker
         if tracker == "comb":
-            self.beat = CombBeatTracker(sample_rate, hop, len(self.fast.mag), bpm_range=bpm_range)
+            params = CombParams() if tempo_prior is None else CombParams(prior_bpm=tempo_prior)
+            self.beat = CombBeatTracker(
+                sample_rate, hop, len(self.fast.mag), bpm_range=bpm_range, params=params
+            )
         elif tracker == "aubio":
             self.beat = BeatTracker(sample_rate, hop, bpm_range=bpm_range)
         else:
@@ -115,10 +119,16 @@ def run_source(
     hop: int = 512,
     bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
     tracker: str = "comb",
+    tempo_prior: float | None = None,
 ) -> Analyser:
     """Analyse ``source`` until exhausted (or interrupted), publishing every state."""
     a = Analyser(
-        source.sample_rate, hop, realtime=source.realtime, bpm_range=bpm_range, tracker=tracker
+        source.sample_rate,
+        hop,
+        realtime=source.realtime,
+        bpm_range=bpm_range,
+        tracker=tracker,
+        tempo_prior=tempo_prior,
     )
     try:
         for block in source.blocks():

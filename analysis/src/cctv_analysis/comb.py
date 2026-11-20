@@ -37,15 +37,21 @@ class CombParams:
     window_s: float = 8.0
     update_s: float = 0.25
     band_hz: tuple[float, float] = (20.0, 2000.0)
-    prior_bpm: float = 128.0
+    prior_bpm: float = 135.0
+    """Centre of the tempo prior. Tuned on a hard techno library and set
+    (docs/beat-evaluation.md); override with ``cctv-analyse --tempo-prior``."""
     prior_octaves: float = 0.6
     """Width (std, octaves) of the global tempo prior."""
     locked_octaves: float = 0.04
     """Width of the prior around the current tempo once locked (≈ 3 %)."""
-    locked_mix: float = 0.85
-    """Share of the locked prior; the rest is the global prior (allows tempo changes)."""
+    locked_mix: float = 0.0
+    """Share of a narrow prior around the current tempo. 0 by default: on a DJ set it
+    kept wrong 3:2 / half-tempo locks alive for minutes (set F 0.71 -> 0.86 without)."""
     comb_multiples: tuple[int, ...] = (1, 2, 4)
     comb_weights: tuple[float, ...] = (1.0, 0.5, 0.25)
+    tempo_candidates: int = 3
+    grid_rank: bool = True
+    subdivision: bool = True
     period_refine: tuple[float, ...] = (-0.006, -0.003, 0.0, 0.003, 0.006)
     phase_beats: int = 16
     phase_decay: float = 0.9
@@ -123,19 +129,47 @@ class CombEstimator:
             score += wt * ac[np.minimum(mult * lags, m - 1)] * (mult * lags < m)
         bpm = 60.0 * self.fr / lags
         score = np.maximum(score, 0.0) * self._prior(bpm.astype(np.float64))
-        i = int(np.argmax(score))
-        lag = float(lags[i])
-        if 0 < i < len(lags) - 1:  # parabolic refinement for sub-frame period
-            a, b, c = score[i - 1], score[i], score[i + 1]
-            den = a - 2 * b + c
-            if den < 0:
-                lag += 0.5 * (a - c) / den
-        period = lag / self.fr
-        # The autocorrelation period is only accurate to ~1 %. Refine it jointly
-        # with the phase: a slightly wrong period skews the fitted grid.
         raw = np.asarray(self.buf, dtype=np.float64)
-        cands = [self._phase(raw, period * (1 + d), t_now) for d in self.p.period_refine]
-        return max(cands, key=lambda c: c.score)
+        prior = self._prior((60.0 * self.fr / lags).astype(np.float64))
+        best: CombEstimate | None = None
+        best_rank = -math.inf
+        for i in self._candidates(score):
+            lag = float(lags[i])
+            if 0 < i < len(lags) - 1:  # parabolic refinement for sub-frame period
+                a, b, c = score[i - 1], score[i], score[i + 1]
+                den = a - 2 * b + c
+                if den < 0:
+                    lag += 0.5 * (a - c) / den
+            period = lag / self.fr
+            # The autocorrelation period is only accurate to ~1 %. Refine it jointly
+            # with the phase: a slightly wrong period skews the fitted grid.
+            cands = [self._phase(raw, period * (1 + d), t_now) for d in self.p.period_refine]
+            e = max(cands, key=lambda c: c.score)
+            # Rank tempo candidates by how strongly their beat grid hits onsets
+            # (mean OSS on the grid), weighted by the prior. Autocorrelation alone
+            # confuses 3:2 cross-rhythms (rolling off-beat bass) with the pulse.
+            # Duple-meter consistency: the half-period grid of a true pulse also hits
+            # onsets (off-beats), while a 3:2 candidate's half grid does not.
+            sub = self._phase(raw, e.period_s / 2, t_now).score if self.p.subdivision else 0.0
+            rank = (e.score + sub) * float(prior[i]) if self.p.grid_rank else float(score[i])
+            if rank > best_rank:
+                best, best_rank = e, rank
+        return best
+
+    def _candidates(self, score: F64) -> list[int]:
+        """Indices of the strongest local maxima of the tempo score."""
+        k = self.p.tempo_candidates
+        if k <= 1:
+            return [int(np.argmax(score))]
+        peaks = [
+            i
+            for i in range(len(score))
+            if score[i] > 0
+            and (i == 0 or score[i] >= score[i - 1])
+            and (i == len(score) - 1 or score[i] >= score[i + 1])
+        ]
+        peaks.sort(key=lambda i: score[i], reverse=True)
+        return peaks[:k] or [int(np.argmax(score))]
 
     def _phase(self, o: F64, period: float, t_now: float) -> CombEstimate:
         """Fit a beat grid with spacing ``period`` to the recent OSS."""
@@ -172,6 +206,7 @@ class PhaseFollower:
         beta: float = 0.02,
         tolerance: float = 0.2,
         switch_after: int = 12,
+        tempo_tolerance: float = 0.04,
         confidence_tau: float = 8.0,
     ) -> None:
         self.alpha = alpha
@@ -179,12 +214,13 @@ class PhaseFollower:
         self.beta = beta
         self.tolerance = tolerance
         self.switch_after = switch_after
+        self.tempo_tolerance = tempo_tolerance
         self.k_conf = 1.0 - math.exp(-1.0 / confidence_tau)
         self.period = 0.0
         self.t0 = 0.0
         self.n0 = 0.0
         self._disagree = 0
-        self._candidate: float | None = None
+        self._candidate: tuple[float, float] | None = None
         self.stats = {"hits": 0, "misses": 0, "relock_miss": 0, "relock_hint": 0}
         self.state = BeatState()
 
@@ -209,7 +245,8 @@ class PhaseFollower:
         if weak:
             s.confidence += self.k_conf * (0.0 - s.confidence)
             return
-        if abs(err) <= self.tolerance:
+        same_tempo = abs(e.period_s / self.period - 1.0) <= self.tempo_tolerance
+        if abs(err) <= self.tolerance and same_tempo:
             self._disagree = 0
             self._candidate = None
             self.stats["hits"] += 1
@@ -223,12 +260,17 @@ class PhaseFollower:
         else:
             self.stats["misses"] += 1
             s.confidence += self.k_conf * (0.0 - s.confidence)
-            # Switch only if the same alternative phase keeps winning.
-            if self._candidate is not None and abs(_wrap(err - self._candidate)) < self.tolerance:
+            # Switch only if the same alternative (phase and tempo) keeps winning.
+            c = self._candidate
+            if (
+                c is not None
+                and abs(_wrap(err - c[0])) < self.tolerance
+                and abs(e.period_s / c[1] - 1.0) <= self.tempo_tolerance
+            ):
                 self._disagree += 1
             else:
                 self._disagree = 1
-            self._candidate = err
+            self._candidate = (err, e.period_s)
             if self._disagree >= self.switch_after:
                 self.n0 = float(round(pos))
                 self.t0 = e.last_beat_t

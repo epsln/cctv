@@ -79,23 +79,50 @@ def load_annotation(path: Path) -> Reference | None:
     return None
 
 
+CHUNK_S = 120.0
+LONG_S = 600.0
+CHUNK_PAD_S = 15.0
+
+
+def _madmom_chunk(job: tuple[str, float, float]) -> F64:
+    """Beats with bar positions in [start, end), decoded with CHUNK_PAD_S context."""
+    import soundfile as sf
+    from madmom.audio.signal import Signal
+    from madmom.features.downbeats import DBNDownBeatTrackingProcessor, RNNDownBeatProcessor
+
+    path, start, end = job
+    info = sf.info(path)
+    sr = int(info.samplerate)
+    a = max(0.0, start - CHUNK_PAD_S)
+    b = min(info.duration, end + CHUNK_PAD_S)
+    y, _ = sf.read(path, start=int(a * sr), stop=int(b * sr), dtype="float32", always_2d=True)
+    act = RNNDownBeatProcessor()(Signal(y.mean(axis=1), sample_rate=sr))
+    res = np.atleast_2d(DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)(act))
+    if res.size == 0:
+        return np.zeros((0, 2))
+    res[:, 0] += a
+    keep = (res[:, 0] >= start) & (res[:, 0] < end)
+    return np.asarray(res[keep], dtype=np.float64)
+
+
 def madmom_reference(path: Path, cache: Path = DEFAULT_CACHE) -> Reference:
     """Offline (non-causal) downbeat tracking with madmom, cached per file."""
     cache.mkdir(parents=True, exist_ok=True)
     f = cache / f"{_cache_key(path)}.tsv"
     if not f.exists():
         import soundfile as sf
-        from madmom.features.downbeats import (
-            DBNDownBeatTrackingProcessor,
-            RNNDownBeatProcessor,
-        )
 
-        y, sr = sf.read(str(path), dtype="float32", always_2d=True)
-        mono = y.mean(axis=1)
-        from madmom.audio.signal import Signal
-
-        act = RNNDownBeatProcessor()(Signal(mono, sample_rate=sr))
-        res = DBNDownBeatTrackingProcessor(beats_per_bar=[3, 4], fps=100)(act)
+        dur = sf.info(str(path)).duration
+        starts = np.arange(0.0, dur, CHUNK_S)
+        if dur <= LONG_S:
+            res = _madmom_chunk((str(path), 0.0, dur))
+        else:
+            # Long recordings (DJ sets): independent overlapping chunks, in parallel.
+            # Whole-file DBN decoding would need tens of GB for a 2 h set.
+            jobs = [(str(path), float(s), float(min(s + CHUNK_S, dur))) for s in starts]
+            with multiprocessing.Pool(min(len(jobs), max(1, (os.cpu_count() or 2) // 2))) as pool:
+                parts = pool.map(_madmom_chunk, jobs)
+            res = np.vstack([p for p in parts if len(p)])
         np.savetxt(f, res, fmt="%.3f\t%d", header=f"madmom downbeats for {path}")
     res = np.atleast_2d(np.loadtxt(f))
     return Reference(res[:, 0], res[res[:, 1] == 1, 0], "madmom")
@@ -120,6 +147,34 @@ class Estimate:
     first_lock_s: float
     relocks: int
     bar_confident_ratio: float
+    relock_t: F64 = field(default_factory=lambda: np.zeros(0))
+    sample_t: F64 = field(default_factory=lambda: np.zeros(0))
+    """Every 10th state: time, locked flag and bar-confident flag (for segment scoring)."""
+    sample_locked: npt.NDArray[np.bool_] = field(default_factory=lambda: np.zeros(0, bool))
+    sample_bar: npt.NDArray[np.bool_] = field(default_factory=lambda: np.zeros(0, bool))
+
+    def window(self, a: float, b: float) -> Estimate:
+        """The estimate restricted to [a, b)."""
+
+        def m(t: F64) -> npt.NDArray[np.bool_]:
+            return np.asarray((t >= a) & (t < b))
+
+        bm, sm, tm = m(self.beats), m(self.sample_t), m(self.bpm_t)
+        locked_t = self.sample_t[sm & self.sample_locked]
+        return Estimate(
+            self.beats[bm],
+            self.confidence[bm],
+            self.downbeats[m(self.downbeats)],
+            self.bpm_t[tm],
+            self.bpm[tm],
+            float(locked_t[0]) if len(locked_t) else math.inf,
+            int(m(self.relock_t).sum()),
+            float(self.sample_bar[sm].mean()) if sm.any() else 0.0,
+            self.relock_t[m(self.relock_t)],
+            self.sample_t[sm],
+            self.sample_locked[sm],
+            self.sample_bar[sm],
+        )
 
 
 def causal_estimate(states: Iterable[MusicalState], offset_s: float = 0.0) -> Estimate:
@@ -137,11 +192,20 @@ def causal_estimate(states: Iterable[MusicalState], offset_s: float = 0.0) -> Es
     relocks = 0
     n = 0
     bar_conf_n = 0
+    relock_t: list[float] = []
+    st: list[float] = []
+    sl: list[bool] = []
+    sb: list[bool] = []
     for s in states:
+        if n % 10 == 0:
+            st.append(s.t_audio + offset_s)
+            sl.append(not math.isnan(s.beat_position) and s.beat_confidence >= CLOCK_CONF)
+            sb.append(s.bar_confidence >= BAR_CONF)
         n += 1
         bar_conf_n += s.bar_confidence >= BAR_CONF
         if s.discontinuity:
             relocks += 1
+            relock_t.append(s.t_audio + offset_s)
         if not math.isnan(s.beat_position):
             first_lock = min(first_lock, s.t_audio + offset_s)
             bpm_t.append(s.t_audio + offset_s)
@@ -169,6 +233,10 @@ def causal_estimate(states: Iterable[MusicalState], offset_s: float = 0.0) -> Es
         first_lock,
         relocks,
         bar_conf_n / max(n, 1),
+        np.array(relock_t),
+        np.array(st),
+        np.array(sl, bool),
+        np.array(sb, bool),
     )
 
 
@@ -270,11 +338,29 @@ def evaluate_track(
     tracker: str = "comb",
 ) -> TrackResult:
     ref_all = reference or reference_for(path, cache)
+    est, end = run_estimate(path, start_s, duration_s, bpm_range, tracker)
+    return score(str(path), ref_all, est, start_s, end)
+
+
+def run_estimate(
+    path: Path,
+    start_s: float = 0.0,
+    duration_s: float | None = None,
+    bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
+    tracker: str = "comb",
+) -> tuple[Estimate, float]:
+    """Run the causal analyser over the file; returns the estimate and the end time."""
     src = FilePcmSource(path, start_s=start_s, duration_s=duration_s)
     an = Analyser(src.sample_rate, realtime=False, bpm_range=bpm_range, tracker=tracker)
     est = causal_estimate((an.process(b) for b in src.blocks()), offset_s=start_s)
     end = start_s + (src.stats.blocks * src.block_size / src.sample_rate)
     src.close()
+    return est, end
+
+
+def score(name: str, ref_all: Reference, est: Estimate, start_s: float, end: float) -> TrackResult:
+    """Score ``est`` against ``ref_all`` on [start_s, end)."""
+    est = est.window(start_s, end)
 
     def crop(x: F64) -> F64:
         return x[(x >= start_s) & (x < end)]
@@ -289,7 +375,7 @@ def evaluate_track(
     tempo = tempo_agreement(ref, est)
     db_ok = _matches(ref_db, est.downbeats, WINDOW)
     return TrackResult(
-        path=str(path),
+        path=name,
         reference=ref_all.source,
         start_s=start_s,
         duration_s=end - start_s,
@@ -311,6 +397,80 @@ def evaluate_track(
         first_lock_s=est.first_lock_s - start_s,
         relocks=est.relocks,
     )
+
+
+# --- DJ sets ---------------------------------------------------------------------
+
+#: Seconds after a cue index counted as the transition (the incoming track is
+#: started at the index and mixed in during the following bars).
+TRANSITION_S = 60.0
+
+
+@dataclass
+class CueTrack:
+    number: int
+    title: str
+    performer: str
+    start_s: float
+
+
+def parse_cue(path: Path) -> list[CueTrack]:
+    """Track starts from a cue sheet (INDEX 01 mm:ss:ff, 75 frames/s; mm may exceed 59)."""
+    tracks: list[CueTrack] = []
+    cur: dict[str, Any] = {}
+    for raw in path.read_text(errors="replace").splitlines():
+        ln = raw.strip()
+        if ln.startswith("TRACK"):
+            cur = {"number": int(ln.split()[1])}
+        elif ln.startswith("TITLE") and cur:
+            cur["title"] = ln.partition(" ")[2].strip('"')
+        elif ln.startswith("PERFORMER") and cur:
+            cur["performer"] = ln.partition(" ")[2].strip('"')
+        elif ln.startswith("INDEX 01") and cur:
+            mm, ss, ff = (int(x) for x in ln.split()[2].split(":"))
+            tracks.append(
+                CueTrack(
+                    cur["number"],
+                    cur.get("title", ""),
+                    cur.get("performer", ""),
+                    mm * 60 + ss + ff / 75.0,
+                )
+            )
+    return tracks
+
+
+@dataclass
+class SetResult:
+    overall: TrackResult
+    tracks: list[TrackResult]
+    transitions: list[TrackResult]
+    steady: list[TrackResult]
+
+
+def evaluate_set(
+    path: Path,
+    cue: Path,
+    cache: Path = DEFAULT_CACHE,
+    bpm_range: tuple[float, float] = (MIN_BPM, MAX_BPM),
+    tracker: str = "comb",
+    duration_s: float | None = None,
+) -> SetResult:
+    """Score a whole recorded set once, then per cue track, in the first TRANSITION_S
+    after each cue index, and in the steady part of each track."""
+    ref = reference_for(path, cache)
+    est, end = run_estimate(path, 0.0, duration_s, bpm_range, tracker)
+    cues = [c for c in parse_cue(cue) if c.start_s < end]
+    bounds = [c.start_s for c in cues] + [end]
+    tracks, trans, steady = [], [], []
+    for i, c in enumerate(cues):
+        a, b = bounds[i], bounds[i + 1]
+        name = f"{c.number:02d} {c.title}"
+        tracks.append(score(name, ref, est, a, b))
+        if i > 0:
+            trans.append(score(name, ref, est, a, min(b, a + TRANSITION_S)))
+        if b - (a + TRANSITION_S) > 30:
+            steady.append(score(name, ref, est, a + TRANSITION_S, b))
+    return SetResult(score(str(path), ref, est, 0.0, end), tracks, trans, steady)
 
 
 # --- Listening check -------------------------------------------------------
@@ -431,6 +591,10 @@ def _evaluate_or_none(path: Path, **kw: Any) -> TrackResult | None:
         return None
 
 
+def _row(r: TrackResult) -> dict[str, Any]:
+    return asdict(r)
+
+
 def _paths(args: argparse.Namespace) -> list[Path]:
     paths = [Path(p) for p in args.tracks]
     if args.list:
@@ -457,12 +621,46 @@ def main(argv: list[str] | None = None) -> int:
         help="instead of scoring, write 30 s excerpts (from --start, default 60 s) with "
         "reference and estimate clicks for listening checks",
     )
+    p.add_argument("--cue", help="cue sheet of a recorded DJ set: score per track/transition")
     p.add_argument("--tracker", choices=["aubio", "comb"], default="comb")
     p.add_argument("--jobs", type=int, default=os.cpu_count() or 1, help="parallel tracks")
     args = p.parse_args(argv)
     paths = _paths(args)
     if not paths:
         p.error("no tracks")
+    if args.cue:
+        if len(paths) != 1:
+            p.error("--cue needs exactly one recording")
+        sr = evaluate_set(
+            paths[0],
+            Path(args.cue),
+            args.cache,
+            tuple(args.bpm_range),
+            args.tracker,
+            args.duration or None,
+        )
+        print("Per track:\n" + format_table(sr.tracks))
+        for label, rows in (("transitions", sr.transitions), ("steady", sr.steady)):
+            m = summarize(rows)
+            print(
+                f"\n{label} ({len(rows)} windows): "
+                + "  ".join(f"{h}={m[k]:.2f}" for k, h, _ in COLUMNS)
+            )
+        print("\nWhole set:\n" + format_table([sr.overall]).splitlines()[1])
+        if args.json:
+            Path(args.json).write_text(
+                json.dumps(
+                    {
+                        "overall": _row(sr.overall),
+                        "tracks": [_row(r) for r in sr.tracks],
+                        "transitions": [_row(r) for r in sr.transitions],
+                        "steady": [_row(r) for r in sr.steady],
+                    },
+                    indent=1,
+                    default=float,
+                )
+            )
+        return 0
     if args.clicks:
         for path in paths:
             for o in render_clicks(
