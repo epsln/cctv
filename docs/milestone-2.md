@@ -21,6 +21,13 @@ CCTV_GODOT_ARGS="--projector-screen=1" tools/run.sh live   # with projector
 
 Godot runs with its operator window. Press `B` on a "one" to align bars.
 
+Live capture creates the PipeWire node `cctv-analyser` (stereo, never
+auto-connected, so a microphone cannot leak in). It produces silence until
+`tools/route_mixxx.sh` links Mixxx's main output (`alsa_playback.mixxx` with
+Mixxx's ALSA/PipeWire output) to it. Neither command needs `XDG_RUNTIME_DIR`
+to be set: both fall back to `/run/user/$UID` when the PipeWire socket is
+there.
+
 ## Structure
 
 ```text

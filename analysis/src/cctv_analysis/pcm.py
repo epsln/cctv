@@ -15,6 +15,7 @@ analysis code is identical for all sources; only the timestamps differ:
 
 from __future__ import annotations
 
+import os
 import queue
 import threading
 import time
@@ -187,19 +188,30 @@ class LivePcmSource:
             self.stats.overruns += 1
 
     def blocks(self) -> Iterator[PcmBlock]:
+        ensure_pipewire_env()
         import sounddevice as sd
 
-        self._stream = sd.InputStream(
-            device=self.device,
-            samplerate=self.sample_rate,
-            channels=self.channels,
-            blocksize=self.block_size,
-            dtype="float32",
-            latency="low",
-            callback=self._callback,
-        )
+        try:
+            self._stream = sd.InputStream(
+                device=self.device,
+                samplerate=self.sample_rate,
+                channels=self.channels,
+                blocksize=self.block_size,
+                dtype="float32",
+                latency="low",
+                callback=self._callback,
+            )
+        except ValueError as e:
+            raise RuntimeError(
+                f"{e}.\nAvailable inputs (cctv-analyse devices):\n  "
+                + "\n  ".join(list_input_devices())
+                + "\nThe 'pipewire' device needs the pipewire-alsa package and a reachable "
+                "PipeWire server (XDG_RUNTIME_DIR, currently "
+                f"{os.environ.get('XDG_RUNTIME_DIR') or 'unset'})."
+            ) from e
         self.stats.latency_s = float(self._stream.latency)
-        with self._stream:
+        self._stream.start()
+        try:
             while not self._stop.is_set():
                 try:
                     block = self._q.get(timeout=0.5)
@@ -208,12 +220,42 @@ class LivePcmSource:
                 self.stats.blocks += 1
                 self.stats.queue_depth = self._q.qsize()
                 yield block
+        finally:
+            # abort(), not stop(): stop() waits for pending buffers, which never
+            # arrive while the PipeWire node is unlinked (it is not scheduled).
+            self._stream.abort(ignore_errors=True)
+            self._stream.close(ignore_errors=True)
 
     def close(self) -> None:
         self._stop.set()
 
 
+def ensure_pipewire_env() -> None:
+    """Point clients at the user's PipeWire server when XDG_RUNTIME_DIR is unset.
+
+    PipeWire's ALSA plugin (the ``pipewire`` PortAudio device) finds the server
+    through ``$XDG_RUNTIME_DIR/pipewire-0``. Shells started via ssh, su, sudo or
+    some terminal multiplexers lack the variable, and then the device silently
+    disappears. Must run before sounddevice is first imported (PortAudio
+    enumerates devices at initialisation).
+    """
+    if not os.environ.get("XDG_RUNTIME_DIR"):
+        candidate = Path(f"/run/user/{os.getuid()}")
+        if (candidate / "pipewire-0").exists():
+            os.environ["XDG_RUNTIME_DIR"] = str(candidate)
+    # Stable, stereo, unconnected capture node: "cctv-analyser:input_FL/FR".
+    # No auto-connection, so the default source (a microphone) never leaks in.
+    # tools/route_mixxx.sh links Mixxx's main output to it explicitly.
+    os.environ.setdefault(
+        "PIPEWIRE_PROPS",
+        '{ node.name=cctv-analyser node.description="CCTV analyser" '
+        "node.autoconnect=false node.always-process=true media.role=Production }",
+    )
+    os.environ.setdefault("PIPEWIRE_ALSA", "{ audio.channels=2 audio.position=[FL FR] }")
+
+
 def list_input_devices() -> list[str]:
+    ensure_pipewire_env()
     import sounddevice as sd
 
     return [
