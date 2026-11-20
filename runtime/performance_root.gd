@@ -13,6 +13,8 @@ extends Node
 ##   --capture=DIR          record timestamped PNG frames + frames.jsonl
 ##   --capture-every=N      capture every Nth frame (default 1)
 ##   --capture-scale=F      downscale captured frames (default 1.0)
+##   --state-port=N         receive MusicalState from the analyser (default 9870;
+##                          live mode only). --no-analysis disables it.
 
 signal frame_done(t: float, frame: int)
 signal composition_changed(comp_id: String)
@@ -27,6 +29,8 @@ var fps := 60.0
 var errors: PackedStringArray = []
 
 var clock: MusicalClock
+var receiver: MusicalStateReceiver
+var scheduler: Scheduler
 var assets: AssetManager
 var compositor: TransitionCompositor
 var feedback: FeedbackPass
@@ -37,6 +41,8 @@ var operator: Control
 var recorder: Recorder
 var main_out: TextureRect
 var _last_usec := 0
+## Prepared composition waiting for its scheduled start: {"id", "comp"}.
+var _pending_switch := {}
 
 
 static func parse_args(list: PackedStringArray) -> Dictionary:
@@ -107,7 +113,39 @@ func setup(path: String) -> Error:
 	clock.process_priority = -100
 	clock.bpm = float(show.get("bpm", 124))
 	clock.mode = MusicalClock.Mode.REPLAY if args.has("replay") else MusicalClock.Mode.LIVE
+	var timing: Dictionary = show.get("timing", {})
+	for k in timing:
+		if (
+			k
+			in [
+				"beats_per_bar",
+				"stale_after",
+				"min_confidence",
+				"tempo_smoothing",
+				"phase_slew_time",
+				"jump_threshold",
+				"auto_bar_alignment",
+				"bar_min_confidence",
+				"latency_compensation",
+				"feature_stale_after"
+			]
+		):
+			clock.set(k, timing[k])
+		else:
+			errors.append("unknown timing setting " + str(k))
 	add_child(clock)
+
+	scheduler = Scheduler.new()
+	scheduler.name = "Scheduler"
+	scheduler.clock = clock
+	add_child(scheduler)
+
+	if clock.mode == MusicalClock.Mode.LIVE and not args.has("no-analysis"):
+		receiver = MusicalStateReceiver.new()
+		receiver.name = "MusicalStateReceiver"
+		receiver.port = int(args.get("state-port", MusicalStateReceiver.DEFAULT_PORT))
+		receiver.clock = clock
+		add_child(receiver)
 
 	assets = AssetManager.new()
 	assets.name = "AssetManager"
@@ -157,8 +195,28 @@ func composition_ids() -> Array:
 
 ## Prepare a composition and transition to it. Preparation is transactional:
 ## an invalid composition is discarded and the current one keeps playing.
-## quantize=true starts the transition on the next beat onset.
-func trigger(comp_id: String, kind := "crossfade", beats := 2.0, quantize := true) -> Error:
+## quantize: false/"now" starts immediately; true/"next_beat" on the next beat;
+## "next_bar" on the next bar (rejected without bar alignment); "grid:N" on the
+## next multiple of N beats. A newer trigger replaces a pending one.
+func trigger(comp_id: String, kind := "crossfade", beats := 2.0, quantize: Variant = true) -> Error:
+	var when := "next_beat"
+	var n := 0.0
+	if quantize is bool:
+		when = "next_beat" if quantize else "now"
+	else:
+		when = str(quantize)
+		if when.begins_with("grid:"):
+			n = float(when.substr(5))
+			when = "grid"
+	if when not in Scheduler.WHEN:
+		errors.append("unknown quantisation " + str(quantize))
+		return ERR_INVALID_PARAMETER
+	if when == "next_bar" and not clock.bar_aligned:
+		errors.append("trigger %s at next_bar rejected: no bar alignment" % comp_id)
+		return ERR_UNAVAILABLE
+	if not TransitionCompositor.KINDS.has(kind):
+		errors.append("unknown transition " + kind)
+		return ERR_INVALID_PARAMETER
 	var spec: Dictionary = show.get("compositions", {}).get(comp_id, {})
 	if spec.is_empty():
 		errors.append("unknown composition " + comp_id)
@@ -170,8 +228,30 @@ func trigger(comp_id: String, kind := "crossfade", beats := 2.0, quantize := tru
 		errors.append_array(c.errors)
 		c.release()
 		return ERR_INVALID_DATA
-	var t0 := clock.next_beat_time() if quantize else clock.time
-	return compositor.start(c, kind, t0, beats * clock.beat_length())
+	_cancel_pending_switch()
+	if when == "now":
+		return compositor.start(c, kind, clock.time, beats * clock.beat_length())
+	var start := func() -> Error:
+		_pending_switch = {}
+		return compositor.start(c, kind, clock.time, beats * clock.beat_length())
+	var id := scheduler.schedule(start, when, n, "switch %s %s" % [comp_id, kind])
+	if id < 0:
+		c.release()
+		return ERR_INVALID_PARAMETER
+	_pending_switch = {"id": id, "comp": c}
+	return OK
+
+
+func _exit_tree() -> void:
+	_cancel_pending_switch()
+
+
+func _cancel_pending_switch() -> void:
+	if _pending_switch.is_empty():
+		return
+	scheduler.cancel(int(_pending_switch["id"]))
+	(_pending_switch["comp"] as Composition).release()
+	_pending_switch = {}
 
 
 func output_texture() -> Texture2D:
@@ -235,6 +315,9 @@ func status() -> Dictionary:
 		"beat": clock.beat_index(),
 		"beat_phase": clock.beat_phase(),
 		"mode": MusicalClock.Mode.keys()[clock.mode],
+		"timing": clock.describe(),
+		"analysis": receiver.describe() if receiver else {},
+		"scheduler": scheduler.describe(),
 		"transition": compositor.describe(),
 		"feedback": feedback.enabled,
 		"metrics": metrics.summary(),

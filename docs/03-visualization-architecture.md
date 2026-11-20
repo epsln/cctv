@@ -139,7 +139,11 @@ The runtime receives timestamped audio features and timing state. It evaluates m
 uBeatPhase
 uBeatEnvelope
 uBassEnergy
+uMidEnergy
+uHighEnergy
 uOnsetEnvelope
+uEnergyTrend    # short minus long energy
+uBeatConfidence
 uBarPhase       # only when bar alignment is available
 ```
 

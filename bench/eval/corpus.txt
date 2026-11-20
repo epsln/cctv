@@ -1,0 +1,17 @@
+# Evaluation corpus (local library). One audio path per line; ~ is expanded.
+~/Music/Nasenbluten - 100% No Soul Guaranteed [Industrial Strength Records] (1995)/disc 1 - 01 - Feeling Shit.mp3
+~/Music/HVNWHT005  Various Artists  Sardonic Tonality Vol. 3/HVNWHT005  Various Artists  Sardonic Tonality Vol. 3_1_New Frames - Byronic Hero [HVNWHT005].mp3
+~/Music/74185# - Howling Wind + Zodd/01 74185# - Howling Wind.flac
+~/Music/Jell - Jell Greatest Hits Vol 2/Jell - Jell Greatest Hits Vol 2 - 01 Animal Holocaust - Full Packed.mp3
+~/Music/Raär - Le Pendu (2018) [WEB-FLAC]/1 L'accomplissement.flac
+~/Music/[AKR010] VA - AKRONYM 010/01 DJ Sun - Uh Ah.mp3
+~/Music/[arts040] i hate models - intergalactic emotional breakdown [2019]/01 intergalactic emotional breakdown.mp3
+~/Music/Spektre-Spektre_Remixed-(RSPKT172)-WEB-2019-ENTANGLE/01-spektre-carnival_of_souls_(oc_and_verde_remix)-a4ff9d46.mp3
+~/Music/[TMOR003] Jan Vercauteren - Higher Pitch (2020)/01-jan_vercauteren-blame_it_on_the_twins_(original_mix)-8beab8e1.mp3
+~/Music/[SR19] Vivere/01 - adsr-spqr-they-lie.mp3
+~/Music/[SCTR005] - Hard Night VA (2021)/01 - oguz-rampage.mp3
+~/Music/2022 - Marc Acardipane - Pitch-Hiker Remixes/Marc Acardipane - Pitch-Hiker Remixes - 01 Pitch-Hiker (Original Mix).mp3
+~/Music/MOTZ VA 01/01-vittorio_di_mango-kura_kura-652d08f6.mp3
+~/Music/(MADINCH002) Tripped - Madinch002/01 Tripped - Dance with Me.flac
+~/Music/Cherrymoon Trax - The House Of House (Thomas Schumacher Remix).mp3
+~/Music/Invaders Must Die - The Prodigy/01. Invaders Must Die.flac

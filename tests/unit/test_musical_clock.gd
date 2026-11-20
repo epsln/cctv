@@ -73,3 +73,33 @@ func test_uniforms_keys_and_feature_override() -> void:
 		check(u.has(k), k)
 	clock.set_features({"bass_energy": 0.3})
 	near(clock.uniforms()["uBassEnergy"], 0.3)
+
+
+func test_bpm_change_keeps_phase_continuous() -> void:
+	clock.advance(0.25)  # half a beat at 120
+	clock.bpm = 60.0
+	near(clock.beat_phase(), 0.5, 1e-6, "no jump on tempo change")
+	clock.advance(0.5)  # half a beat at 60
+	near(clock.beat_phase(), 0.0, 1e-6)
+	eq(clock.beat_index(), 1)
+
+
+func test_next_beat_and_bar_times() -> void:
+	clock.advance(0.1)
+	near(clock.next_beat_time(), 0.5, 1e-6)
+	eq(clock.next_bar_time(), -1.0, "no bar without alignment")
+	clock.advance(0.5)  # beat 1.2
+	clock.align_bar_now()  # nearest beat (1) is a downbeat
+	near(clock.next_bar_position(), 5.0, 1e-6)
+	near(clock.next_bar_time(), 0.6 + 3.8 * 0.5, 1e-6)
+	near(clock.bar_phase(), 0.2 / 4.0, 1e-6)
+	eq(clock.bar_source, "manual")
+	clock.clear_bar_alignment()
+	eq(clock.bar_phase(), -1.0)
+
+
+func test_new_uniforms() -> void:
+	var u := clock.uniforms()
+	for k in ["uMidEnergy", "uHighEnergy", "uEnergyTrend", "uBeatConfidence"]:
+		check(u.has(k), k)
+		check(k in Effect.MUSICAL, k + " bindable")

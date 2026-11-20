@@ -52,7 +52,17 @@ Copy this template into the table below for each acceptance run:
 
 | Date | Machine / GPU | Driver | Duration | Mean fps | Late % | p99 ms | Max prepare ms | Max seek ms | CPU % | RSS MB (end) | RSS MB/h | Pass |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| | | | | | | | | | | | | |
+| 2026-11-17 | i7-13700KF / RTX 4070 Ti, X11 | NVIDIA, opengl3 | 300 s | 59.82 | 0.79 | 17.32 | 26.8 | 62.6 | 45 | 434 | 55 (warm-up, see below) | yes |
+
+Notes on the 2026-11-17 run (`bench/results/bench_1794937641.json`):
+
+- All 77 switches succeeded and no errors were reported.
+- The 142 late frames are close to the 77 switches + 59 benchmark seeks. They match the
+  known synchronous `prepare_ms` (17–27 ms) and seek costs (up to 63 ms) on
+  the main thread. Late frames are under the 1 % limit, but with little margin.
+- RSS rose from 279 MB to 430 MB in the first 30 s while assets loaded, then
+  stayed flat (430 → 434 MB over 270 s). The 55 MB/h fit includes that warm-up.
+  A 2 h run (`tools/bench.sh 7200 --sample=60`) is still needed to confirm long-session stability.
 
 Reference smoke run (software rendering, **not acceptance**). llvmpipe,
 16 threads, 15 s: about 22 fps, 7/7 switches succeeded, max prepare 23 ms,

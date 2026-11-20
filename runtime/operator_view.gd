@@ -1,13 +1,18 @@
 extends Control
 ## Operator view: output preview, composition triggers, transition controls,
-## feedback toggle and live status. Keys 1-9 trigger compositions.
+## feedback toggle, timing controls and live status.
+## Keys: 1-9 trigger compositions, B = "this beat is the one" (bar alignment),
+## Shift+B clears it, [ and ] nudge the beat phase by -/+ NUDGE beats.
+
+const NUDGE := 0.02
+const QUANTIZE := ["now", "next_beat", "next_bar", "grid:4", "grid:8", "grid:16"]
 
 var performance: PerformanceRoot
 var _preview: TextureRect
 var _status: Label
 var _kind: OptionButton
 var _beats: SpinBox
-var _quantize: CheckBox
+var _quantize: OptionButton
 var _fb: CheckBox
 var _comp_box: VBoxContainer
 
@@ -50,10 +55,20 @@ func _ready() -> void:
 	_beats.value = 2
 	_beats.suffix = "beats"
 	right.add_child(_beats)
-	_quantize = CheckBox.new()
-	_quantize.text = "Start on next beat"
-	_quantize.button_pressed = true
+	_quantize = OptionButton.new()
+	for q in QUANTIZE:
+		_quantize.add_item(q)
+	_quantize.select(1)
 	right.add_child(_quantize)
+	right.add_child(_label("Timing"))
+	var row := HBoxContainer.new()
+	right.add_child(row)
+	row.add_child(_button("Bar: this is 1 (B)", performance.clock.align_bar_now))
+	row.add_child(_button("Clear", performance.clock.clear_bar_alignment))
+	row = HBoxContainer.new()
+	right.add_child(row)
+	row.add_child(_button("Nudge - ([)", performance.clock.nudge.bind(-NUDGE)))
+	row.add_child(_button("Nudge + (])", performance.clock.nudge.bind(NUDGE)))
 	_fb = CheckBox.new()
 	_fb.text = "Feedback"
 	_fb.button_pressed = performance.feedback.enabled
@@ -73,6 +88,13 @@ func _ready() -> void:
 		_comp_box.add_child(b)
 
 
+func _button(t: String, cb: Callable) -> Button:
+	var b := Button.new()
+	b.text = t
+	b.pressed.connect(cb)
+	return b
+
+
 func _label(t: String) -> Label:
 	var l := Label.new()
 	l.text = t
@@ -80,12 +102,24 @@ func _label(t: String) -> Label:
 
 
 func _go(id: String) -> void:
-	performance.trigger(id, _kind.get_item_text(_kind.selected), _beats.value, _quantize.button_pressed)
+	performance.trigger(id, _kind.get_item_text(_kind.selected), _beats.value, QUANTIZE[_quantize.selected])
 
 
 func _unhandled_key_input(e: InputEvent) -> void:
 	var k := e as InputEventKey
-	if k and k.pressed and not k.echo and k.keycode >= KEY_1 and k.keycode <= KEY_9:
+	if k == null or not k.pressed or k.echo:
+		return
+	match k.keycode:
+		KEY_B:
+			if k.shift_pressed:
+				performance.clock.clear_bar_alignment()
+			else:
+				performance.clock.align_bar_now()
+		KEY_BRACKETLEFT:
+			performance.clock.nudge(-NUDGE)
+		KEY_BRACKETRIGHT:
+			performance.clock.nudge(NUDGE)
+	if k.keycode >= KEY_1 and k.keycode <= KEY_9:
 		var ids := performance.composition_ids()
 		var i := k.keycode - KEY_1
 		if i < ids.size():
@@ -112,6 +146,47 @@ func _process(_d: float) -> void:
 			]
 		),
 	]
+	var tm: Dictionary = s["timing"]
+	(
+		lines
+		. append(
+			(
+				"timing=%s bpm=%.2f conf=%.2f age=%.0fms err=%+.3fb bar=%s(%.2f) bar_phase=%.2f"
+				% [
+					tm["timing_source"],
+					tm["bpm"],
+					tm["beat_confidence"],
+					tm["timing_age"] * 1000.0,
+					tm["phase_error"],
+					tm["bar_source"],
+					tm["bar_confidence"],
+					performance.clock.bar_phase(),
+				]
+			)
+		)
+	)
+	var an: Dictionary = s["analysis"]
+	if not an.is_empty():
+		var st: Dictionary = an["stats"]
+		lines.append(
+			(
+				"analysis: %s rx=%d age=%.0fms transport=%.1fms overruns=%d"
+				% [
+					"listening" if an["listening"] else "OFF",
+					st["received"],
+					st["age_ms"],
+					st["transport_ms"],
+					st["overruns"]
+				]
+			)
+		)
+	var sc: Dictionary = s["scheduler"]
+	lines.append(
+		(
+			"scheduler: pending=%d done=%d late=%d max=%.1fms rejected=%d"
+			% [sc["pending"], sc["executed"], sc["late"], sc["max_late_ms"], sc["rejected"]]
+		)
+	)
 	for src in s["sources"]:
 		lines.append("  %s %s %s ph=%.2f" % [src["id"], src["type"], src["state"], src["playhead"]])
 	for e in s["errors"].slice(-5):

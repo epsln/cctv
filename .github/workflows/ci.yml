@@ -21,11 +21,29 @@ jobs:
           python-version: "3.12"
       - run: pip install "gdtoolkit==4.*"
       - name: gdlint
-        run: gdlint runtime sources tests
+        run: gdlint runtime sources tests tools
       - name: gdformat
-        run: gdformat --check -l 120 runtime sources tests
+        run: gdformat --check -l 120 runtime sources tests tools
       - name: shellcheck
         run: shellcheck tools/*.sh
+
+  analysis:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: analysis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: System dependencies (libsndfile, PortAudio)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsndfile1 libportaudio2
+      - run: uv sync --locked --group eval
+      - run: uv run ruff format --check
+      - run: uv run ruff check
+      - run: uv run mypy src tests
+      - run: uv run pytest
 
   test:
     runs-on: ubuntu-24.04
@@ -52,6 +70,14 @@ jobs:
         run: tools/test.sh headless
       - name: Tests (OpenGL via Xvfb/llvmpipe, pixel checks)
         run: tools/test.sh gl
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: End-to-end timing smoke (analyser -> UDP -> clock/scheduler)
+        run: |
+          sudo apt-get install -y --no-install-recommends libsndfile1 libportaudio2
+          (cd analysis && uv sync --locked)
+          tools/timing_probe.sh "" 15
 
   benchmark-smoke:
     needs: test

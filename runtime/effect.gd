@@ -16,7 +16,18 @@ const LIBRARY := {
 	"bloom": "res://effects/shaders/bloom.gdshader",
 	"color_grade": "res://effects/shaders/color_grade.gdshader",
 }
-const MUSICAL := ["uTime", "uBeatPhase", "uBeatEnvelope", "uBassEnergy", "uOnsetEnvelope", "uBarPhase"]
+const MUSICAL := [
+	"uTime",
+	"uBeatPhase",
+	"uBeatEnvelope",
+	"uBassEnergy",
+	"uMidEnergy",
+	"uHighEnergy",
+	"uOnsetEnvelope",
+	"uEnergyTrend",
+	"uBeatConfidence",
+	"uBarPhase",
+]
 
 var type := ""
 var params := {}
