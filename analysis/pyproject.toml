@@ -20,6 +20,9 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.6",
 ]
+faces = [
+    "opencv-python-headless>=4.10",
+]
 eval = [
     "madmom",
     "mir-eval>=0.8.2",
@@ -37,6 +40,10 @@ madmom = { git = "https://github.com/CPJKU/madmom" }
 [project.scripts]
 cctv-analyse = "cctv_analysis.cli:main"
 cctv-evaluate = "cctv_analysis.evaluate:main"
+cctv-ingest = "cctv_library.cli:main"
+
+[tool.uv.build-backend]
+module-name = ["cctv_analysis", "cctv_library"]
 
 [tool.ruff]
 line-length = 100
@@ -47,11 +54,11 @@ select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "NPY", "PERF"]
 
 [tool.mypy]
 strict = true
-packages = ["cctv_analysis"]
+packages = ["cctv_analysis", "cctv_library"]
 mypy_path = "src"
 
 [[tool.mypy.overrides]]
-module = ["aubio", "sounddevice", "soundfile", "madmom.*", "mir_eval"]
+module = ["aubio", "sounddevice", "soundfile", "madmom.*", "mir_eval", "cv2"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -17,7 +17,7 @@ void fragment() {
 	vec2 uv_g = UV + vec2(jitter, 0.0);
 	vec2 uv_r = uv_g + vec2(amt * rand(t + 0.3) * 0.5, 0.0);
 	vec2 uv_b = uv_g - vec2(amt * rand(t + 0.7) * 0.5, 0.0);
-	float scan = sin(UV.y / TEXTURE_PIXEL_SIZE.y * 1.5) * 0.03 * uBassEnergy;
+	float scan = sin(UV.y / TEXTURE_PIXEL_SIZE.y * 1.5) * 0.03 * uBassEnergy * min(amount * 20.0, 1.0);
 	vec4 g = texture(TEXTURE, clamp(uv_g, 0.0, 1.0));
 	COLOR = vec4(
 		texture(TEXTURE, clamp(uv_r, 0.0, 1.0)).r + scan,

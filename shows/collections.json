@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "collections": {
+    "tv_news": {"description": "Broadcast news, anchors, studio feeds", "tags_any": ["tv_news"]},
+    "advertising": {"description": "Commercials, promos, product stills", "tags_any": ["advertising"]},
+    "cctv": {"description": "Fixed security-camera footage", "tags_any": ["cctv"], "types": ["video", "image"]},
+    "talking_heads": {"description": "Single speakers facing camera (faces)", "tags_any": ["talking_heads"]},
+    "crowds": {"description": "Crowds, public spaces", "tags_any": ["crowds"]},
+    "domestic_footage": {"description": "Home video, private footage", "tags_any": ["domestic_footage"]},
+    "landscapes": {"description": "Empty places, landscapes", "tags_any": ["landscapes"]},
+    "technical_diagrams": {"description": "Schematics, charts, technical drawings", "tags_any": ["technical_diagrams", "math"]},
+    "bureaucratic_documents": {"description": "Forms, minutes, reports", "tags_any": ["documents"], "types": ["pdf_page", "image"], "exclude_tags": ["redacted"]},
+    "redacted_pages": {"description": "Pages with redactions", "tags_any": ["redacted"], "types": ["pdf_page", "image"]},
+    "abstract_material": {"description": "Textures, noise, generated visuals", "tags_any": ["abstract_material", "math"]},
+    "captions": {"description": "Short caption lines", "tags_any": ["captions"], "types": ["text"]},
+    "tickers": {"description": "Ticker lines", "tags_any": ["tickers"], "types": ["text"]}
+  }
+}

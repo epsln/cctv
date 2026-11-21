@@ -10,6 +10,11 @@ extends Node
 ##     --out=PATH          result JSON (default bench/results/<timestamp>.json)
 ##     --show=PATH         workload (default res://shows/bench.json)
 ##     --vsync=off         measure headroom instead of vsync-locked pacing
+##     --fps=N             override the show's target frame rate (e.g. 30 on a laptop)
+##
+## Family shows (shows/bench_families.json) have no fixed compositions: each
+## switch applies the next composition family with a fresh seed, and beat
+## events (cuts, swaps, spawns) run between switches.
 ##
 ## Measures frame pacing, late frames, prepare/switch latency, seek latency,
 ## decoder drift corrections, process CPU, RSS and GPU memory, an upload
@@ -36,6 +41,7 @@ var _switch_i := 0
 var _cpu0 := 0.0
 var _rng := RandomNumberGenerator.new()
 var _done := false
+var _max_decoders := 0
 
 
 func _ready() -> void:
@@ -50,6 +56,8 @@ func _ready() -> void:
 	perf = PerformanceRoot.new()
 	perf.name = "PerformanceRoot"
 	perf.args = {"show": args.get("show", DEFAULT_SHOW), "no-operator": true, "no-projector": true}
+	if args.has("fps"):
+		perf.args["fps"] = args["fps"]
 	add_child(perf)
 	_next_switch_beat = switch_beats
 	_t0_usec = Time.get_ticks_usec()
@@ -64,6 +72,7 @@ func _process(_d: float) -> void:
 	if _done:
 		return
 	var e := elapsed()
+	_max_decoders = maxi(_max_decoders, perf.assets.active_videos())
 	var beat := perf.clock.beat_index()
 	if beat >= _next_switch_beat and not perf.compositor.is_transitioning():
 		_next_switch_beat = beat + switch_beats
@@ -80,6 +89,9 @@ func _process(_d: float) -> void:
 
 
 func _switch() -> void:
+	if perf.composition_ids().is_empty() and perf.director.family:
+		_switch_family()
+		return
 	var ids := perf.composition_ids()
 	var target: String = ids[(ids.find(perf.compositor.active_id()) + 1) % ids.size()]
 	var kind: String = KINDS[_switch_i % KINDS.size()]
@@ -92,6 +104,28 @@ func _switch() -> void:
 			{
 				"t": perf.clock.time,
 				"to": target,
+				"kind": kind,
+				"ok": err == OK,
+				"prepare_ms": (Time.get_ticks_usec() - t0) / 1000.0,
+			}
+		)
+	)
+
+
+func _switch_family() -> void:
+	var fams := CompositionFamily.ids()
+	var target: String = fams[(fams.find(perf.director.family.family_id) + 1) % fams.size()]
+	var kind: String = KINDS[_switch_i % KINDS.size()]
+	_switch_i += 1
+	var t0 := Time.get_ticks_usec()
+	var err := perf.director.apply_family(target, null, -1, {}, kind, 2.0, "next_beat")
+	(
+		switches
+		. append(
+			{
+				"t": perf.clock.time,
+				"to": target,
+				"seed": perf.director.family.seed if perf.director.family else -1,
 				"kind": kind,
 				"ok": err == OK,
 				"prepare_ms": (Time.get_ticks_usec() - t0) / 1000.0,
@@ -149,6 +183,8 @@ func sample() -> Dictionary:
 		"late_frames": m["late_frames"],
 		"p99_ms": m["p99_ms"],
 		"rss_mb": rss_mb(),
+		"video_decoders": perf.assets.active_videos(),
+		"family": perf.director.family.family_id if perf.director and perf.director.family else "",
 		"video_mem_mb": Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0,
 		"texture_mem_mb": Performance.get_monitor(Performance.RENDER_TEXTURE_MEM_USED) / 1048576.0,
 		"objects": Performance.get_monitor(Performance.OBJECT_COUNT),
@@ -239,6 +275,7 @@ func _finish() -> void:
 		},
 		"seeks": {"count": seeks.size(), "max_ms": seek_ms.max() if seek_ms else 0.0, "events": seeks},
 		"upload_ms": upload_benchmark(),
+		"max_video_decoders": _max_decoders,
 		"sources": perf.assets.describe(),
 		"timeline": timeline,
 		"errors": perf.errors,

@@ -36,6 +36,7 @@ uv run cctv-analyse file set.flac --play             # play a recorded set and p
 uv run cctv-analyse live --device pipewire           # live input (route Mixxx main to it)
 uv run pytest && uv run ruff check && uv run mypy    # analyser tests/lint/types
 tools/timing_probe.sh [AUDIO] [SECONDS]              # end-to-end timing measurement
+uv run cctv-ingest RAW/ assets/library/ --faces ../.models/face_detection_yunet_2023mar.onnx  # media library
 uv sync --group eval && uv run cctv-evaluate --list ../bench/eval/corpus.txt   # beat/bar accuracy
 ```
 
@@ -52,7 +53,8 @@ See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
 | `scenes/` | Performance root, operator view, benchmark |
 | `tools/` | Asset transcoding, PDF rasterization, sample generation, benchmark launcher |
 | `tests/` | Headless test runner and unit/integration tests |
-| `analysis/` | Python (uv) audio analyser: PCM sources, features, beat/bar tracking, state transport |
+| `runtime/families/` | Composition families (surveillance wall, channel surfing, document storm) |
+| `analysis/` | Python (uv): audio analyser (`cctv_analysis`) and media-library ingest (`cctv_library`) |
 
 ## Documentation
 
@@ -70,6 +72,7 @@ See [docs/benchmark.md](docs/benchmark.md) for acceptance measurements and
 | [Milestone 1 implementation](docs/milestone-1.md) | What was built, design decisions, limitations |
 | [Benchmark](docs/benchmark.md) | Acceptance workload, procedure and results |
 | [Milestone 2 implementation](docs/milestone-2.md) | Musical runtime: analyser, clock following, scheduler, status, plan |
+| [Milestone 3 implementation](docs/milestone-3.md) | Visual vocabulary: library manifest, collections, families, macro controls |
 | [Musical state protocol](docs/musical-state.md) | Message schema, timing semantics, transport and fallback |
 | [Beat and bar evaluation](docs/beat-evaluation.md) | Reference-beat method, corpus, results and tracker choices |
 

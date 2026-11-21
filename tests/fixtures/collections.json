@@ -1,0 +1,56 @@
+{
+ "version": 1,
+ "collections": {
+  "cctv": {
+   "tags_any": [
+    "cctv"
+   ],
+   "types": [
+    "video",
+    "image"
+   ]
+  },
+  "talking_heads": {
+   "tags_any": [
+    "talking_heads"
+   ]
+  },
+  "tv_news": {
+   "tags_any": [
+    "tv_news"
+   ]
+  },
+  "advertising": {
+   "tags_any": [
+    "advertising"
+   ]
+  },
+  "bureaucratic_documents": {
+   "tags_any": [
+    "documents"
+   ],
+   "exclude_tags": [
+    "redacted"
+   ]
+  },
+  "redacted_pages": {
+   "tags_all": [
+    "documents",
+    "redacted"
+   ]
+  },
+  "captions": {
+   "tags_any": [
+    "captions"
+   ],
+   "types": [
+    "text"
+   ]
+  },
+  "tickers": {
+   "tags_any": [
+    "tickers"
+   ]
+  }
+ }
+}

@@ -7,7 +7,10 @@ extends Control
 ##   {"kind": "layer", "id": "news", "asset": "news1", "instance": "shared",
 ##    "start": 0.0, "rect": [x, y, w, h], "rotation": 0.0, "crop": [u, v, w, h],
 ##    "opacity": 1.0, "blend": "mix", "effects": [...],
-##    "bindings": [{"prop": "opacity", "signal": "uBeatEnvelope", "amount": -0.3}]}
+##    "bindings": [{"prop": "opacity", "signal": "uBeatEnvelope", "amount": -0.3}],
+##    "motion": {"wobble": 0.02, "freq": 0.1, "phase": 0.0}}
+## Bindable props: opacity, rotation (deg), scale, x, y (offsets, normalized).
+## motion: slow elliptical drift of amplitude `wobble` (normalized) at `freq` Hz.
 
 const BLENDS := {
 	"mix": CanvasItemMaterial.BLEND_MODE_MIX,
@@ -15,7 +18,7 @@ const BLENDS := {
 	"sub": CanvasItemMaterial.BLEND_MODE_SUB,
 	"mul": CanvasItemMaterial.BLEND_MODE_MUL,
 }
-const BINDABLE := ["opacity", "rotation", "scale"]
+const BINDABLE := ["opacity", "rotation", "scale", "x", "y"]
 
 var layer_id := ""
 var source: VisualSource
@@ -28,8 +31,10 @@ var blend := "mix"
 var rotation_deg := 0.0
 var scale_factor := 1.0
 var bindings: Array = []
+var motion := {}
 var chain: EffectChain
 var error := ""
+var _parent_size := Vector2.ONE
 
 
 func _init() -> void:
@@ -57,6 +62,11 @@ func configure(d: Dictionary, src: VisualSource) -> Error:
 	var mat := CanvasItemMaterial.new()
 	mat.blend_mode = BLENDS[blend]
 	material = mat
+	motion = d.get("motion", {}).duplicate()
+	for k in motion:
+		if k not in ["wobble", "freq", "phase"]:
+			error = "layer %s: unknown motion key '%s'" % [layer_id, k]
+			return ERR_INVALID_PARAMETER
 	for b in d.get("bindings", []):
 		if b.get("prop") not in BINDABLE or b.get("signal") not in Effect.MUSICAL:
 			error = "layer %s: invalid binding %s" % [layer_id, str(b)]
@@ -72,6 +82,7 @@ func configure(d: Dictionary, src: VisualSource) -> Error:
 
 ## Lay out in parent coordinates.
 func layout(parent_size: Vector2) -> void:
+	_parent_size = parent_size
 	position = norm_rect.position * parent_size
 	size = norm_rect.size * parent_size
 	pivot_offset = size * 0.5
@@ -81,6 +92,10 @@ func update(t: float, u: Dictionary) -> void:
 	var op := opacity
 	var rot := rotation_deg
 	var sc := scale_factor
+	var off := Vector2.ZERO
+	if not motion.is_empty():
+		var a := TAU * (float(motion.get("freq", 0.1)) * t + float(motion.get("phase", 0.0)))
+		off = float(motion.get("wobble", 0.0)) * Vector2(sin(a), cos(a * 0.7))
 	for b in bindings:
 		var v := float(b["amount"]) * float(u.get(b["signal"], 0.0))
 		match b["prop"]:
@@ -90,11 +105,18 @@ func update(t: float, u: Dictionary) -> void:
 				rot += v
 			"scale":
 				sc += v
+			"x":
+				off.x += v
+			"y":
+				off.y += v
 	modulate.a = clampf(op, 0.0, 1.0)
 	rotation_degrees = rot
 	scale = Vector2(sc, sc)
+	position = (norm_rect.position + off) * _parent_size
 	if source:
 		source.update(t)
+		if source.has_method("set_uniforms"):
+			source.set_uniforms(u)
 		var tex := source.get_texture()
 		if tex and chain.pass_count() > 0 and chain._input != tex:
 			# Late-prepared source (e.g. async PDF page): rebuild at real size.
@@ -133,4 +155,5 @@ func to_dict() -> Dictionary:
 		"blend": blend,
 		"effects": chain.to_array(),
 		"bindings": bindings.duplicate(true),
+		"motion": motion.duplicate(),
 	}

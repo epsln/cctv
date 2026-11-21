@@ -1,0 +1,16 @@
+{
+  "manifest": "../assets/sample/library/manifest.json",
+  "output": [1920, 1080],
+  "fps": 60,
+  "bpm": 124,
+  "feedback": {"enabled": false, "decay": 0.8, "zoom": 0.996, "spin": 0.2, "mode": 0, "beat_cut": 0.3},
+  "families": {
+    "collections": "collections.json",
+    "max_videos": 4,
+    "seed": 1,
+    "initial": {
+      "family": "surveillance_wall",
+      "controls": {"density": 0.5, "motion": 0.3, "cutting": 0.4, "distortion": 0.2, "persistence": 0.3, "annotation": 0.6, "text_rate": 0.3, "character": "glitch"}
+    }
+  }
+}

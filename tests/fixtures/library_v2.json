@@ -1,0 +1,378 @@
+{
+ "schema": "cctv.manifest",
+ "version": 2,
+ "library_version": "testlib0001",
+ "assets": [
+  {
+   "id": "cctv/cam0",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "cctv"
+   ],
+   "content_hash": "sha256:c0",
+   "proxies": [
+    {
+     "height": 36,
+     "path": "clip.ogv"
+    },
+    {
+     "height": 1080,
+     "path": "clip.ogv"
+    }
+   ],
+   "thumbnail": "still.png",
+   "size": [
+    64,
+    36
+   ],
+   "duration": 2.0,
+   "analyses": {
+    "probe": 1,
+    "proxy": 1,
+    "thumb": 1
+   }
+  },
+  {
+   "id": "cctv/cam1",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "cctv"
+   ],
+   "content_hash": "sha256:c1",
+   "proxies": [
+    {
+     "height": 36,
+     "path": "clip.ogv"
+    },
+    {
+     "height": 1080,
+     "path": "clip.ogv"
+    }
+   ],
+   "thumbnail": "still.png",
+   "size": [
+    64,
+    36
+   ],
+   "duration": 2.0,
+   "analyses": {
+    "probe": 1,
+    "proxy": 1,
+    "thumb": 1
+   }
+  },
+  {
+   "id": "cctv/cam2",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "cctv"
+   ],
+   "content_hash": "sha256:c2",
+   "proxies": [
+    {
+     "height": 36,
+     "path": "clip.ogv"
+    },
+    {
+     "height": 1080,
+     "path": "clip.ogv"
+    }
+   ],
+   "thumbnail": "still.png",
+   "size": [
+    64,
+    36
+   ],
+   "duration": 2.0,
+   "analyses": {
+    "probe": 1,
+    "proxy": 1,
+    "thumb": 1
+   }
+  },
+  {
+   "id": "cctv/cam3",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "cctv"
+   ],
+   "content_hash": "sha256:c3",
+   "proxies": [
+    {
+     "height": 36,
+     "path": "clip.ogv"
+    },
+    {
+     "height": 1080,
+     "path": "clip.ogv"
+    }
+   ],
+   "thumbnail": "still.png",
+   "size": [
+    64,
+    36
+   ],
+   "duration": 2.0,
+   "analyses": {
+    "probe": 1,
+    "proxy": 1,
+    "thumb": 1
+   }
+  },
+  {
+   "id": "cctv/cam4",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "cctv"
+   ],
+   "content_hash": "sha256:c4",
+   "proxies": [
+    {
+     "height": 36,
+     "path": "clip.ogv"
+    },
+    {
+     "height": 1080,
+     "path": "clip.ogv"
+    }
+   ],
+   "thumbnail": "still.png",
+   "size": [
+    64,
+    36
+   ],
+   "duration": 2.0,
+   "analyses": {
+    "probe": 1,
+    "proxy": 1,
+    "thumb": 1
+   }
+  },
+  {
+   "id": "cctv/cam5",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "cctv"
+   ],
+   "content_hash": "sha256:c5",
+   "proxies": [
+    {
+     "height": 36,
+     "path": "clip.ogv"
+    },
+    {
+     "height": 1080,
+     "path": "clip.ogv"
+    }
+   ],
+   "thumbnail": "still.png",
+   "size": [
+    64,
+    36
+   ],
+   "duration": 2.0,
+   "analyses": {
+    "probe": 1,
+    "proxy": 1,
+    "thumb": 1
+   }
+  },
+  {
+   "id": "tv_news/ch0",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "tv_news"
+   ],
+   "content_hash": "sha256:n0",
+   "thumbnail": "still.png",
+   "analyses": {
+    "probe": 1
+   }
+  },
+  {
+   "id": "tv_news/ch1",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "tv_news"
+   ],
+   "content_hash": "sha256:n1",
+   "thumbnail": "still.png",
+   "analyses": {
+    "probe": 1
+   }
+  },
+  {
+   "id": "tv_news/ch2",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "tv_news"
+   ],
+   "content_hash": "sha256:n2",
+   "thumbnail": "still.png",
+   "analyses": {
+    "probe": 1
+   }
+  },
+  {
+   "id": "talking_heads/anchor",
+   "type": "video",
+   "path": "clip.ogv",
+   "tags": [
+    "talking_heads",
+    "has_faces"
+   ],
+   "content_hash": "sha256:a",
+   "faces": "faces.json",
+   "analyses": {
+    "faces": 1
+   }
+  },
+  {
+   "id": "advertising/ad0",
+   "type": "image",
+   "path": "still.png",
+   "tags": [
+    "advertising"
+   ],
+   "size": [
+    64,
+    64
+   ],
+   "content_hash": "sha256:ad0"
+  },
+  {
+   "id": "advertising/ad1",
+   "type": "image",
+   "path": "still.png",
+   "tags": [
+    "advertising"
+   ],
+   "size": [
+    64,
+    64
+   ],
+   "content_hash": "sha256:ad1"
+  },
+  {
+   "id": "documents/dossier/p1",
+   "type": "pdf_page",
+   "path": "still.png",
+   "page": 1,
+   "tags": [
+    "documents"
+   ],
+   "size": [
+    64,
+    90
+   ],
+   "content_hash": "sha256:d"
+  },
+  {
+   "id": "documents/dossier/p2",
+   "type": "pdf_page",
+   "path": "still.png",
+   "page": 2,
+   "tags": [
+    "documents"
+   ],
+   "size": [
+    64,
+    90
+   ],
+   "content_hash": "sha256:d"
+  },
+  {
+   "id": "documents/dossier/p3",
+   "type": "pdf_page",
+   "path": "still.png",
+   "page": 3,
+   "tags": [
+    "documents"
+   ],
+   "size": [
+    64,
+    90
+   ],
+   "content_hash": "sha256:d"
+  },
+  {
+   "id": "documents/dossier/p4",
+   "type": "pdf_page",
+   "path": "still.png",
+   "page": 4,
+   "tags": [
+    "documents",
+    "redacted"
+   ],
+   "size": [
+    64,
+    90
+   ],
+   "content_hash": "sha256:d"
+  },
+  {
+   "id": "text/captions/1",
+   "type": "text",
+   "text": "SIGNAL LOST",
+   "style": "caption",
+   "tags": [
+    "text",
+    "captions"
+   ]
+  },
+  {
+   "id": "text/captions/2",
+   "type": "text",
+   "text": "NO FURTHER CONTACT",
+   "style": "caption",
+   "tags": [
+    "text",
+    "captions"
+   ]
+  },
+  {
+   "id": "text/captions/3",
+   "type": "text",
+   "text": "SUBJECT LAST SEEN NORTH GATE",
+   "style": "caption",
+   "tags": [
+    "text",
+    "captions"
+   ]
+  },
+  {
+   "id": "text/tickers/1",
+   "type": "text",
+   "text": "BREAKING // ALL CHANNELS //",
+   "style": "ticker",
+   "tags": [
+    "text",
+    "tickers"
+   ]
+  },
+  {
+   "id": "gen/osc",
+   "type": "procedural",
+   "generator": "lissajous",
+   "params": {
+    "freq_a": 5.0
+   },
+   "size": [
+    64,
+    36
+   ],
+   "tags": [
+    "math"
+   ]
+  }
+ ]
+}

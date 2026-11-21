@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Generate a synthetic sample library in assets/sample/ (gitignored):
 # 1 "news" video (720p), 4 "CCTV" videos (360p), a still, a 3-page PDF with
-# rasterized pages, text assets and a manifest with a synthetic face track.
+# rasterized pages, text assets and a manifest with a synthetic face track
+# (manifest v1, used by shows/demo.json and shows/bench.json).
+#
+# Also builds a tagged raw library (assets/sample/raw_library/<collection>/)
+# and ingests it with cctv-ingest into assets/sample/library/ (manifest v2,
+# used by shows/families.json). Face tracks there come from hand-made
+# sidecars (synthetic: the test patterns contain no faces).
 #
 #   tools/make_sample_assets.sh [-d seconds] [-H news_height]
 set -euo pipefail
@@ -36,6 +42,55 @@ python3 tools/make_pdf.py "$out/dossier.pdf" \
   "APPENDIX A|TRANSCRIPT|...the meeting will proceed as planned...|...no further contact..." \
   "APPENDIX B|CAMERA INDEX|CAM 01 NORTH GATE|CAM 02 LOBBY|CAM 03 TUNNEL|CAM 04 ROOF"
 tools/rasterize_pdf.sh -r 120 "$out/pdf_cache" "$out/dossier.pdf" >/dev/null
+
+# --- tagged raw library for composition families (manifest v2) -------------
+lib=$out/raw_library
+rm -rf "$lib"
+mkdir -p "$lib"/{cctv,tv_news,talking_heads,advertising,documents,redacted,text,math}
+for c in cam1 cam2 cam3 cam4; do cp "$out/raw/$c.mp4" "$lib/cctv/$c.mp4"; done
+gen2() {  # gen2 PATH LAVFI_SOURCE
+  ffmpeg -nostdin -loglevel error -y -f lavfi -i "$2" -t "$dur" -pix_fmt yuv420p -c:v libx264 -preset ultrafast "$1"
+}
+gen2 "$lib/cctv/cam5.mp4" "cellauto=size=640x360:rate=30:rule=30,scale=640:360$(label 'CAM 05')"
+gen2 "$lib/cctv/cam6.mp4" "testsrc=size=640x360:rate=30,hue=s=0$(label 'CAM 06')"
+cp "$out/raw/news.mp4" "$lib/tv_news/news24.mp4"
+gen2 "$lib/tv_news/bars.mp4" "smptehdbars=size=${w}x${h}:rate=30$(label 'CH 3')"
+gen2 "$lib/tv_news/rgb.mp4" "rgbtestsrc=size=${w}x${h}:rate=30$(label 'CH 9')"
+cp "$out/raw/news.mp4" "$lib/talking_heads/anchor.mp4"
+gen2 "$lib/advertising/promo.mp4" "testsrc2=size=640x360:rate=30,hue=H=t:s=2$(label 'BUY NOW')"
+for i in 1 2 3; do
+  ffmpeg -nostdin -loglevel error -y -f lavfi -i "gradients=size=800x600:seed=$i" -frames:v 1 "$lib/advertising/ad$i.png"
+done
+cp "$out/dossier.pdf" "$lib/documents/dossier.pdf"
+python3 tools/make_pdf.py "$lib/documents/minutes.pdf" \
+  "MINUTES OF MEETING|ITEM 1: BUDGET|ITEM 2: SURVEILLANCE PROGRAMME|ITEM 3: ANY OTHER BUSINESS" \
+  "ANNEX|LIST OF ATTENDEES|[WITHHELD]|[WITHHELD]|[WITHHELD]"
+python3 tools/make_pdf.py "$lib/redacted/file_0417.pdf" \
+  "FILE 0417|XXXXXXXXXXXXXXXXXXXX|XXXXXXXXXXXX XXXXXXXXX|XXXXXXX" \
+  "PAGE 2|XXXXXXXXXXXXXXXX|XXXXXXXXXXXXXXXXXXXXXXXX"
+cat > "$lib/text/captions.txt" <<'EOT'
+# style: caption
+# lang: en
+LIVE - ALL FEEDS
+SIGNAL LOST ON CHANNEL 4
+SUBJECT LAST SEEN NORTH GATE 02:14
+NO FURTHER CONTACT
+VEHICLE REGISTRATION WITHHELD
+EOT
+cat > "$lib/text/tickers.txt" <<'EOT'
+# style: ticker
+# lang: en
+BREAKING  //  SIGNAL LOST ON CHANNEL 4  //  SUBJECT LAST SEEN NORTH GATE 02:14  //  NO FURTHER CONTACT  //
+MARKETS CLOSED  //  CURFEW EXTENDED  //  STAY TUNED FOR FURTHER INSTRUCTIONS  //
+EOT
+echo '{"generator": "lissajous", "params": {"freq_a": 3.0, "freq_b": 2.0}, "size": [960, 540]}' > "$lib/math/scope.gen.json"
+echo '{"generator": "lissajous", "params": {"freq_a": 5.0, "freq_b": 4.0, "phase_speed": 0.6}, "size": [960, 540]}' > "$lib/math/scope_fast.gen.json"
+python3 -c "
+import json, math
+s = [{'t': round(i * 0.25, 2), 'box': [round(0.35 + 0.15 * math.sin(i * 0.15), 4), 0.25, 0.2, 0.35], 'conf': 0.9}
+     for i in range(int($dur * 4))]
+print(json.dumps({'detector': 'synthetic', 'tracks': [{'id': 1, 'samples': s}]}))" > "$lib/talking_heads/anchor.mp4.faces.json"
+PYTHONPATH=analysis/src python3 -m cctv_library -q --proxy-heights 360,540 "$lib" "$out/library"
 rm -rf "$out/raw"
 
 # Synthetic face track for the news clip: a box drifting across the frame.

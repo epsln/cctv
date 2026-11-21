@@ -1,0 +1,17 @@
+{
+  "manifest": "../assets/sample/library/manifest.json",
+  "output": [1920, 1080],
+  "fps": 60,
+  "bpm": 124,
+  "feedback": {"enabled": true, "decay": 0.8, "zoom": 0.996, "spin": 0.2, "mode": 0, "beat_cut": 0.3},
+  "global_effects": [
+    {"type": "chromatic", "params": {"strength": 0.002}, "bindings": [{"param": "strength", "signal": "uBassEnergy", "amount": 0.006}]}
+  ],
+  "families": {
+    "collections": "collections.json",
+    "max_videos": 4,
+    "seed": 1,
+    "controls": {"density": 1.0, "motion": 0.6, "cutting": 0.8, "distortion": 0.6, "persistence": 0.6, "annotation": 1.0, "text_rate": 1.0, "character": "kaleido"},
+    "initial": {"family": "surveillance_wall"}
+  }
+}

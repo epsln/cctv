@@ -3,6 +3,7 @@ extends Control
 ## feedback toggle, timing controls and live status.
 ## Keys: 1-9 trigger compositions, B = "this beat is the one" (bar alignment),
 ## Shift+B clears it, [ and ] nudge the beat phase by -/+ NUDGE beats.
+## Families (FamilyPanel): F1-F3 select a family, R reseeds, H toggles hold.
 
 const NUDGE := 0.02
 const QUANTIZE := ["now", "next_beat", "next_bar", "grid:4", "grid:8", "grid:16"]
@@ -15,6 +16,7 @@ var _beats: SpinBox
 var _quantize: OptionButton
 var _fb: CheckBox
 var _comp_box: VBoxContainer
+var _families: FamilyPanel
 
 
 func _ready() -> void:
@@ -39,9 +41,13 @@ func _ready() -> void:
 	_status.custom_minimum_size.y = 200
 	left.add_child(_status)
 
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size.x = 380
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	h.add_child(scroll)
 	var right := VBoxContainer.new()
-	right.custom_minimum_size.x = 260
-	h.add_child(right)
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(right)
 	right.add_child(_label("Transition"))
 	_kind = OptionButton.new()
 	for k in TransitionCompositor.KINDS:
@@ -86,6 +92,13 @@ func _ready() -> void:
 		b.text = id
 		b.pressed.connect(_go.bind(id))
 		_comp_box.add_child(b)
+	if performance.director:
+		_families = FamilyPanel.new()
+		_families.director = performance.director
+		_families.transition_kind = func(): return _kind.get_item_text(_kind.selected)
+		_families.transition_beats = func(): return _beats.value
+		_families.quantize = func(): return QUANTIZE[_quantize.selected]
+		right.add_child(_families)
 
 
 func _button(t: String, cb: Callable) -> Button:
@@ -119,6 +132,17 @@ func _unhandled_key_input(e: InputEvent) -> void:
 			performance.clock.nudge(-NUDGE)
 		KEY_BRACKETRIGHT:
 			performance.clock.nudge(NUDGE)
+		KEY_R:
+			if _families:
+				_families.reseed()
+		KEY_H:
+			if _families:
+				_families.toggle_hold()
+	if _families and k.keycode >= KEY_F1 and k.keycode <= KEY_F3:
+		var fams := CompositionFamily.ids()
+		var fi := k.keycode - KEY_F1
+		if fi < fams.size():
+			_families.select_family(fams[fi])
 	if k.keycode >= KEY_1 and k.keycode <= KEY_9:
 		var ids := performance.composition_ids()
 		var i := k.keycode - KEY_1
@@ -187,7 +211,10 @@ func _process(_d: float) -> void:
 			% [sc["pending"], sc["executed"], sc["late"], sc["max_late_ms"], sc["rejected"]]
 		)
 	)
-	for src in s["sources"]:
+	lines.append(
+		"sources=%d videos=%d library=%s" % [s["sources"].size(), s["videos"], performance.assets.library_version]
+	)
+	for src in s["sources"].slice(0, 6):
 		lines.append("  %s %s %s ph=%.2f" % [src["id"], src["type"], src["state"], src["playhead"]])
 	for e in s["errors"].slice(-5):
 		lines.append("ERR " + e)

@@ -1,0 +1,21 @@
+{
+ "manifest": "library_v2.json",
+ "output": [
+  64,
+  36
+ ],
+ "fps": 30,
+ "bpm": 120,
+ "families": {
+  "collections": "collections.json",
+  "max_videos": 4,
+  "seed": 3,
+  "initial": {
+   "family": "surveillance_wall",
+   "seed": 11,
+   "controls": {
+    "density": 0.5
+   }
+  }
+ }
+}

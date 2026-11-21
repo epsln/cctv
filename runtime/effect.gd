@@ -104,5 +104,21 @@ func apply(u: Dictionary) -> Dictionary:
 	return out
 
 
+## Change a base parameter at runtime (live macro controls).
+func set_param(p: String, v: Variant) -> Error:
+	if p not in param_names():
+		return ERR_INVALID_PARAMETER
+	params[p] = v
+	material.set_shader_parameter(p, v)
+	return OK
+
+
+## Change the amount of an existing binding (no-op when absent).
+func set_binding_amount(p: String, amount: float) -> void:
+	for b in bindings:
+		if b["param"] == p:
+			b["amount"] = amount
+
+
 func to_dict() -> Dictionary:
 	return {"type": type, "params": params.duplicate(), "bindings": bindings.duplicate(true)}
